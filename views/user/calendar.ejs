@@ -2,11 +2,60 @@
 
 <%
 const _prev = Array.isArray(prevEvents) ? prevEvents : [];
-const _next = Array.isArray(nextEvents) ? nextEvents : [];
 const _err  = error || null;
+
+function pickStart(ev) {
+  return ev?.startDateTime || ev?.start?.dateTime || '';
+}
+function pickEnd(ev) {
+  return ev?.endDateTime || ev?.end?.dateTime || '';
+}
+function pickLoc(ev) {
+  return ev?.location || ev?.location?.displayName || '';
+}
+function pickEventId(ev) {
+  return ev?.eventId || ev?.id || '';
+}
+function pickTranscript(ev) {
+  // cached shape: ev.transcripts[0] = { meetingId, transcriptId }
+  if (Array.isArray(ev?.transcripts) && ev.transcripts.length) {
+    return {
+      meetingId: ev.transcripts[0].meetingId,
+      transcriptId: ev.transcripts[0].transcriptId,
+    };
+  }
+  // graph shape: ev._transcripts[0] = { meetingId, id }
+  if (ev?._hasTranscript && Array.isArray(ev?._transcripts) && ev._transcripts.length) {
+    return {
+      meetingId: ev._transcripts[0].meetingId,
+      transcriptId: ev._transcripts[0].id,
+    };
+  }
+  return null;
+}
 %>
 
 <h1>My Calendar</h1>
+<!-- OPTIONAL: Add this near the top of views/user/calendar.ejs (under the title) -->
+<%
+  const _pastDays = typeof pastDays !== 'undefined' ? pastDays : 30;
+  const _lastSyncedAt = (typeof lastSyncedAt !== 'undefined') ? lastSyncedAt : null;
+%>
+
+<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:8px 0 14px;">
+  <div class="muted">
+    Showing last <strong><%= _pastDays %></strong> days
+    <% if (_lastSyncedAt) { %>
+      • Last synced: <%= new Date(_lastSyncedAt).toLocaleString() %>
+    <% } %>
+  </div>
+
+  <div style="display:flex; gap:10px; align-items:center;">
+    <a class="btn" href="/user/calendar?pastDays=<%= _pastDays %>&refresh=1">Refresh</a>
+  </div>
+</div>
+
+<p><a href="/user/home">← Back to home</a></p>
 
 <p>
   <strong>User:</strong> <%= user.email %><br/>
@@ -28,41 +77,28 @@ const _err  = error || null;
 <% } else { %>
   <ul>
     <% _prev.forEach(ev => { %>
+      <%
+        const startDT = pickStart(ev);
+        const endDT   = pickEnd(ev);
+        const loc     = pickLoc(ev);
+        const eventId = pickEventId(ev);
+        const tx      = pickTranscript(ev);
+      %>
+
       <li style="margin-bottom:12px;">
         <strong><%= ev.subject || '(no subject)' %></strong><br/>
-        <span><%= ev.start?.dateTime %> → <%= ev.end?.dateTime %></span><br/>
-        
+        <span><%= startDT %> → <%= endDT %></span><br/>
 
-        <% if (ev.location?.displayName) { %>
-          <span><%= ev.location.displayName %></span><br/>
+        <% if (loc) { %>
+          <span><%= loc %></span><br/>
         <% } %>
 
-        <% if (ev._hasTranscript && ev._transcripts && ev._transcripts.length) { %>
+        <% if (tx) { %>
           <a
-            href="/user/transcript/ensure/<%= ev._transcripts[0].meetingId %>/<%= ev._transcripts[0].id %>?subject=<%= encodeURIComponent(ev.subject || '') %>&start=<%= encodeURIComponent(ev.start?.dateTime || '') %>&end=<%= encodeURIComponent(ev.end?.dateTime || '') %>"
+            href="/user/transcript/ensure/<%= tx.meetingId %>/<%= tx.transcriptId %>?eventId=<%= encodeURIComponent(eventId) %>&subject=<%= encodeURIComponent(ev.subject || '') %>&start=<%= encodeURIComponent(startDT) %>&end=<%= encodeURIComponent(endDT) %>"
             target="_blank"
             rel="noopener"
           >Transcript</a>
-        <% } %>            
-      </li>     
-    <% }) %>
-  </ul>
-<% } %>
-
-<hr style="margin:18px 0;" />
-
-<h2>Next 3 days - from tomorrow</h2>
-
-<% if (_next.length === 0) { %>
-  <p>No upcoming events found.</p>
-<% } else { %>
-  <ul>
-    <% _next.forEach(ev => { %>
-      <li style="margin-bottom:12px;">
-        <strong><%= ev.subject || '(no subject)' %></strong><br/>
-        <span><%= ev.start?.dateTime %> → <%= ev.end?.dateTime %></span><br/>
-        <% if (ev.location?.displayName) { %>
-          <span><%= ev.location.displayName %></span>
         <% } %>
       </li>
     <% }) %>
@@ -70,4 +106,4 @@ const _err  = error || null;
 <% } %>
 
 <hr style="margin:18px 0;" />
-<p><a href="/user/home">← Back to home</a></p>
+

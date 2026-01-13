@@ -1,10 +1,10 @@
 // routes/user.js
 const express = require('express');
 const router = express.Router();
+const fetch = require('node-fetch');
 
 const Org = require('../models/Org');
 const EventCache = require('../models/EventCache');
-
 
 const ensureUserFreshToken = require('../middleware/ensureUserFreshToken');
 const { getCalendarRange } = require('../utils/graph');
@@ -15,17 +15,13 @@ const Transcript = require('../models/Transcript');
 const { vttToText } = require('../utils/vtt');
 const { generateMeetingSummary } = require('../utils/openaiSummary');
 
-
-// helper windows (no "today" overlap)
 // helper windows
 function past30DaysIncludingToday() {
   const now = new Date();
 
-  // end = end of today
   const end = new Date(now);
   end.setHours(23, 59, 59, 999);
 
-  // start = start of day 14 days ago (today counts as day 15)
   const start = new Date(now);
   start.setDate(now.getDate() - 29);
   start.setHours(0, 0, 0, 0);
@@ -36,12 +32,10 @@ function past30DaysIncludingToday() {
 function next3DaysIncludingTomorrow() {
   const now = new Date();
 
-  // start = start of tomorrow
   const start = new Date(now);
   start.setDate(now.getDate() + 1);
   start.setHours(0, 0, 0, 0);
 
-  // end = end of day (tomorrow + 2 days) => 3 days total
   const end = new Date(start);
   end.setDate(start.getDate() + 2);
   end.setHours(23, 59, 59, 999);
@@ -49,6 +43,38 @@ function next3DaysIncludingTomorrow() {
   return { startDateTime: start.toISOString(), endDateTime: end.toISOString() };
 }
 
+async function getEventParticipants(accessToken, eventId) {
+  if (!eventId) return [];
+
+  const url = `https://graph.microsoft.com/v1.0/me/events/${encodeURIComponent(eventId)}?$select=id,organizer,attendees`;
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+
+  if (!r.ok) return [];
+
+  const emails = [];
+  const orgEmail = j?.organizer?.emailAddress?.address;
+  if (orgEmail) emails.push(orgEmail);
+
+  const atts = Array.isArray(j?.attendees) ? j.attendees : [];
+  for (const a of atts) {
+    const em = a?.emailAddress?.address;
+    if (em) emails.push(em);
+  }
+
+  return [...new Set(emails.map(e => String(e).toLowerCase().trim()).filter(Boolean))];
+}
+
+// "karthikvj@suntecsbs.com" vs "karthikvj@suntecgroup.com"
+function sameMailbox(a, b) {
+  if (!a || !b) return false;
+  const A = String(a).toLowerCase().trim();
+  const B = String(b).toLowerCase().trim();
+  if (A === B) return true;
+  return A.split('@')[0] === B.split('@')[0];
+}
 
 // GET /user/login
 router.get('/login', (req, res) => {
@@ -89,53 +115,185 @@ router.get('/home', requireUser, (req, res) => {
   });
 });
 
-// GET /user/calendar (last 3 days + next 3 days)
+// GET /user/calendar (cached transcript-events for last N days, with optional refresh)
 router.get('/calendar', requireUser, ensureUserFreshToken, async (req, res) => {
   let error = null;
-  let prevEvents = [];
-  let nextEvents = [];
 
   const tokens = res.locals.userTokens;
   const accessToken = (tokens?.access_token || '').trim();
 
+  const orgId = req.user.org?._id;
+  const me = String(req.user.email || '').toLowerCase().trim();
+
+  const PAST_DAYS = Math.max(1, Number(req.query.pastDays || 30));
+
+  const CACHE_FRESH_MS = 6 * 60 * 60 * 1000; // 6 hours
+  const forceRefresh = String(req.query.refresh || '') === '1';
+
   try {
     if (!accessToken) {
       error = 'No access token available. Please sign in again.';
-    } else {
-      const past = past30DaysIncludingToday();
-      const future = next3DaysIncludingTomorrow();
+      throw new Error(error);
+    }
 
-      const [pastList, futureList] = await Promise.all([
-        getCalendarRange(accessToken, { ...past, top: 25 }),
-        getCalendarRange(accessToken, { ...future, top: 25 }),
-      ]);
+    const now = new Date();
 
-      prevEvents = Array.isArray(pastList) ? pastList : [];
-      prevEvents = prevEvents.reverse();
-      nextEvents = Array.isArray(futureList) ? futureList : [];
-  
+    const pastStart = new Date(now);
+    pastStart.setDate(now.getDate() - (PAST_DAYS - 1));
+    pastStart.setHours(0, 0, 0, 0);
 
+    const pastEnd = new Date(now);
+    pastEnd.setHours(23, 59, 59, 999);
 
-      // ✅ annotate all past events; concurrency avoids slowness
-      prevEvents = await annotateEventsWithTranscripts(accessToken, prevEvents, {
-        maxChecks: 30,
-        concurrency: 4,
+    // 1) Serve from cache if fresh
+    const lastCached = await EventCache.findOne({ orgId, userEmail: me })
+      .sort({ syncedAt: -1 })
+      .select({ syncedAt: 1 })
+      .lean();
+
+    const isFresh =
+      !!lastCached?.syncedAt &&
+      (Date.now() - new Date(lastCached.syncedAt).getTime()) < CACHE_FRESH_MS;
+
+    if (!forceRefresh && isFresh) {
+      const cached = await EventCache.find({
+        orgId,
+        userEmail: me,
+        hasTranscript: true,
+      })
+        .sort({ startDateTime: -1 })
+        .limit(400)
+        .lean();
+
+      const prevEvents = cached.filter(e => {
+        const t = Date.parse(e.startDateTime || '');
+        return Number.isFinite(t) && t >= pastStart.getTime() && t <= pastEnd.getTime();
       });
 
-      const has = (prevEvents || []).filter(e => e._hasTranscript).length;
-
+      return res.render('user/calendar', {
+        title: 'Meetings with transcripts',
+        user: req.user,
+        org: req.user.org,
+        activeNav: 'calendar',
+        prevEvents,
+        error: null,
+        cachedOnly: true,
+        cacheFresh: true,
+        pastDays: PAST_DAYS,
+        forceRefresh: false,
+        lastSyncedAt: lastCached?.syncedAt || null,
+      });
     }
+
+    // 2) Refresh from Graph
+    const pastList = await getCalendarRange(accessToken, {
+      startDateTime: pastStart.toISOString(),
+      endDateTime: pastEnd.toISOString(),
+      top: 75,
+      max: 300,
+    });
+
+    const events = Array.isArray(pastList) ? pastList : [];
+
+    const candidates = events.filter(ev => !!(ev?.isOnlineMeeting || ev?.onlineMeeting || ev?.onlineMeetingUrl));
+
+    const annotated = await annotateEventsWithTranscripts(accessToken, candidates, {
+      maxChecks: 60,
+      concurrency: 4,
+    });
+
+    const transcriptEvents = (annotated || []).filter(ev => ev._hasTranscript && ev._transcripts?.length);
+
+    if (transcriptEvents.length) {
+      const bulk = EventCache.collection.initializeUnorderedBulkOp();
+      let ops = 0;
+
+      for (const ev of transcriptEvents) {
+        const emails = [];
+
+        const orgEmail = ev.organizer?.emailAddress?.address;
+        if (orgEmail) emails.push(String(orgEmail).toLowerCase().trim());
+
+        const atts = Array.isArray(ev.attendees) ? ev.attendees : [];
+        for (const a of atts) {
+          const em = a?.emailAddress?.address;
+          if (em) emails.push(String(em).toLowerCase().trim());
+        }
+
+        const uniqEmails = [...new Set(emails.filter(Boolean))];
+
+        bulk
+          .find({ orgId, userEmail: me, eventId: String(ev.id) })
+          .upsert()
+          .updateOne({
+            $set: {
+              orgId,
+              userEmail: me,
+              eventId: String(ev.id),
+
+              subject: ev.subject || '',
+              startDateTime: ev.start?.dateTime || '',
+              endDateTime: ev.end?.dateTime || '',
+              location: ev.location?.displayName || '',
+
+              organizerEmail: String(orgEmail || '').toLowerCase().trim(),
+              attendeeEmails: uniqEmails,
+
+              hasTranscript: true,
+              transcripts: (ev._transcripts || []).map(t => ({
+                meetingId: String(t.meetingId || ''),
+                transcriptId: String(t.id || ''),
+              })),
+
+              syncedAt: new Date(),
+            },
+            $setOnInsert: { createdAt: new Date() },
+          });
+
+        ops++;
+      }
+
+      if (ops > 0) await bulk.execute();
+    }
+
+    const prevEvents = transcriptEvents
+      .filter(ev => {
+        const t = Date.parse(ev.start?.dateTime || '');
+        return Number.isFinite(t) && t >= pastStart.getTime() && t <= pastEnd.getTime();
+      })
+      .sort((a, b) => Date.parse(b.start?.dateTime || '') - Date.parse(a.start?.dateTime || ''));
+
+    const lastSyncedAt = new Date();
+
+    return res.render('user/calendar', {
+      title: 'Meetings with transcripts',
+      user: req.user,
+      org: req.user.org,
+      activeNav: 'calendar',
+      prevEvents,
+      error: null,
+      cachedOnly: true,
+      cacheFresh: false,
+      pastDays: PAST_DAYS,
+      forceRefresh: true,
+      lastSyncedAt,
+    });
   } catch (e) {
-    error = e.message || String(e);
+    error = error || e.message || String(e);
   }
 
   return res.render('user/calendar', {
-    title: 'My Calendar',
+    title: 'Meetings with transcripts',
     user: req.user,
     org: req.user.org,
-    prevEvents,
-    nextEvents,
+    activeNav: 'calendar',
+    prevEvents: [],
     error,
+    cachedOnly: true,
+    cacheFresh: false,
+    pastDays: Number(req.query.pastDays || 30),
+    forceRefresh: String(req.query.refresh || '') === '1',
+    lastSyncedAt: null,
   });
 });
 
@@ -148,7 +306,6 @@ router.get('/debug/transcript/:eventId', requireUser, ensureUserFreshToken, asyn
   const eventId = req.params.eventId;
 
   try {
-    // 1) fetch event from Graph
     const url = `https://graph.microsoft.com/v1.0/me/events/${encodeURIComponent(eventId)}?$select=id,subject,start,end,onlineMeeting,onlineMeetingUrl,isOnlineMeeting`;
     const ev = await (await require('node-fetch')(url, {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -170,198 +327,128 @@ router.get('/debug/transcript/:eventId', requireUser, ensureUserFreshToken, asyn
   }
 });
 
+// GET /user/transcript/ensure/:meetingId/:transcriptId
+router.get(
+  '/transcript/ensure/:meetingId/:transcriptId',
+  requireUser,
+  ensureUserFreshToken,
+  async (req, res) => {
 
-// GET /user/transcript/view/:meetingId/:transcriptId
-router.get('/transcript/ensure/:meetingId/:transcriptId', requireUser, ensureUserFreshToken, async (req, res) => {
-  const tokens = res.locals.userTokens;
-  const accessToken = (tokens?.access_token || '').trim();
-  if (!accessToken) return res.status(401).send('No access token. Please sign in again.');
+    const tokens = res.locals.userTokens;
+    const accessToken = (tokens?.access_token || '').trim();
+    if (!accessToken) return res.status(401).send('No access token.');
 
-  const { meetingId, transcriptId } = req.params;
-  const orgId = req.user.org?._id;
+    const { meetingId, transcriptId } = req.params;
+    const eventId = String(req.query.eventId || '').trim();
+    const orgId = req.user.org?._id;
 
-  try {
-    // 1) Find or create transcript doc (once)
-    let doc = await Transcript.findOne({ orgId, meetingId, transcriptId });
+    const me = String(req.user.email || '').toLowerCase().trim();
 
-    if (!doc) {
-      const vtt = await getTranscript(accessToken, meetingId, transcriptId, 'text/vtt');
-      const text = vttToText(vtt);
+    let doc = null;
 
-      try {
-        doc = await Transcript.create({
-          orgId,
-          meetingId,
-          transcriptId,
-          subject: req.query.subject || '',
-          startDateTime: req.query.start || '',
-          endDateTime: req.query.end || '',
-          vtt,
-          text,
-          ai: { status: 'none' },
-        });
-      } catch (e) {
-        if (e.code === 11000) {
-          doc = await Transcript.findOne({ orgId, meetingId, transcriptId });
-        } else {
-          throw e;
+    try {
+      // ✅ MIGRATION-SAFE LOOKUP:
+      // New key: (orgId, eventId, transcriptId)
+      // Old key: (orgId, meetingId, transcriptId)
+      doc = await Transcript.findOne({ orgId, eventId, transcriptId });
+      if (!doc) doc = await Transcript.findOne({ orgId, meetingId, transcriptId });
+
+      // Create if missing
+      if (!doc) {
+        const vtt = await getTranscript(accessToken, meetingId, transcriptId, 'text/vtt');
+        const text = vttToText(vtt);
+
+        // Fetch participants for enrichment (not hard-auth gate)
+        const participantEmails = await getEventParticipants(accessToken, eventId);
+
+        // Optional log for alias mismatch
+        if (participantEmails.length && !participantEmails.some(p => sameMailbox(p, me))) {
+          console.warn('[transcript-access] email not in attendee list (alias likely):', me, participantEmails);
+        }
+
+        try {
+          doc = await Transcript.create({
+            orgId,
+            eventId,
+            meetingId,
+            transcriptId,
+            subject: req.query.subject || '',
+            startDateTime: req.query.start || '',
+            endDateTime: req.query.end || '',
+            participantEmails,
+            vtt,
+            text,
+            ai: { status: 'none' },
+          });
+        } catch (e) {
+          if (e.code === 11000) {
+            doc = await Transcript.findOne({ orgId, eventId, transcriptId });
+            if (!doc) doc = await Transcript.findOne({ orgId, meetingId, transcriptId });
+          } else {
+            throw e;
+          }
         }
       }
-    }
 
-    // 2) If summary already done, just show it
-    if (doc.ai?.status === 'done' && doc.ai?.summary) {
-      return res.redirect(`/user/transcript/saved/${doc._id}`);
-    }
-
-    // 3) If queued too long, reset (prevents permanent stuck)
-    const now = Date.now();
-    const queuedAt = doc.ai?.updatedAt ? new Date(doc.ai.updatedAt).getTime() : 0;
-    const QUEUE_STALE_MS = 5 * 60 * 1000; // 5 mins is enough
-
-    if (doc.ai?.status === 'queued' && queuedAt && (now - queuedAt) > QUEUE_STALE_MS) {
-      await Transcript.updateOne(
-        { _id: doc._id },
-        { $set: { 'ai.status': 'none', 'ai.error': 'stale queued reset', 'ai.updatedAt': new Date() } }
-      );
-      doc = await Transcript.findById(doc._id);
-    }
-
-    // 4) Acquire lock if needed (none/error -> queued)
-    await Transcript.updateOne(
-      {
-        _id: doc._id,
-        $or: [
-          { 'ai.status': { $in: ['none', 'error'] } },
-          { 'ai.status': { $exists: false } },
-        ],
-      },
-      { $set: { 'ai.status': 'queued', 'ai.updatedAt': new Date() } }
-    );
-
-    // reload latest
-    doc = await Transcript.findById(doc._id);
-
-    // 5) If queued and summary empty, generate (this covers BOTH fresh and previously queued)
-    if (doc.ai?.status === 'queued' && !doc.ai?.summary) {
-      try {
-        console.log('AI summary generating for transcript:', String(doc._id), 'len:', (doc.text || '').length);
-
-        const { model, summary } = await generateMeetingSummary({
-          text: doc.text || '',
-          subject: doc.subject || req.query.subject || '',
-        });
-
-        await Transcript.updateOne(
-          { _id: doc._id },
-          {
-            $set: {
-              'ai.status': 'done',
-              'ai.model': model,
-              'ai.summary': summary,
-              'ai.error': '',
-              'ai.createdAt': doc.ai?.createdAt || new Date(),
-              'ai.updatedAt': new Date(),
-            },
-          }
-        );
-      } catch (err) {
-        console.log('AI summary failed for transcript:', String(doc._id), err);
-
-        await Transcript.updateOne(
-          { _id: doc._id },
-          {
-            $set: {
-              'ai.status': 'error',
-              'ai.error': err.message || String(err),
-              'ai.updatedAt': new Date(),
-            },
-          }
-        );
+      // Hard guard
+      if (!doc) {
+        return res.status(500).send('Transcript document could not be created or loaded.');
       }
-    }
 
-    return res.redirect(`/user/transcript/saved/${doc._id}`);
-  } catch (e) {
-    return res.status(500).send(e.message || String(e));
-  }
-});
-
-
-router.get('/debug/onlineMeetings', requireUser, ensureUserFreshToken, async (req, res) => {
-  const accessToken = (res.locals.userTokens?.access_token || '').trim();
-  const url = 'https://graph.microsoft.com/beta/me/onlineMeetings?$top=1';
-  const fetch = require('node-fetch');
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-  const txt = await r.text();
-  res.status(r.status).send(txt);
-});
-
-// Ensure transcript is saved + AI summary created once
-router.get('/transcript/ensure/:meetingId/:transcriptId', requireUser, ensureUserFreshToken, async (req, res) => {
-  const tokens = res.locals.userTokens;
-  const accessToken = (tokens?.access_token || '').trim();
-  if (!accessToken) return res.status(401).send('No access token. Please sign in again.');
-
-  const { meetingId, transcriptId } = req.params;
-  const orgId = req.user.org?._id;
-
-  try {
-    // 1) Find existing transcript doc
-    let doc = await Transcript.findOne({ orgId, meetingId, transcriptId });
-
-    // 2) If not exists, fetch from Graph and create (once)
-    if (!doc) {
-      const vtt = await getTranscript(accessToken, meetingId, transcriptId, 'text/vtt');
-      const text = vttToText(vtt);
-
-      try {
-        doc = await Transcript.create({
-          orgId,
-          meetingId,
-          transcriptId,
-          subject: req.query.subject || '',
-          startDateTime: req.query.start || '',
-          endDateTime: req.query.end || '',
-          vtt,
-          text,
-        });
-      } catch (e) {
-        // race condition: someone else created it first
-        if (e.code === 11000) {
-          doc = await Transcript.findOne({ orgId, meetingId, transcriptId });
-        } else {
-          throw e;
+      // Backfill participants if missing
+      if (!doc.participantEmails || !doc.participantEmails.length) {
+        const participantEmails = await getEventParticipants(accessToken, eventId);
+        if (participantEmails.length) {
+          await Transcript.updateOne({ _id: doc._id }, { $set: { participantEmails } });
+          doc.participantEmails = participantEmails;
         }
       }
-    }
 
-    const now = Date.now();
-    const queuedAt = doc.ai?.updatedAt ? new Date(doc.ai.updatedAt).getTime() : 0;
-    const QUEUE_STALE_MS = 10 * 60 * 1000;
+      // ✅ Access check:
+      // We DO NOT hard-block based on attendee list because of alias/UPN mismatches.
+      // If you want to hard-block later, do it by verifying /me identity (mail/proxyAddresses).
+      const allowed = (doc.participantEmails || []).some(p => sameMailbox(p, me));
+      if (doc.participantEmails?.length && !allowed) {
+        console.warn('[transcript-access] mismatch; allowing via calendar visibility:', me, doc.participantEmails);
+      }
 
-    if (doc.ai?.status === 'queued' && queuedAt && (now - queuedAt) > QUEUE_STALE_MS) {
+      // If summary already done
+      if (doc.ai?.status === 'done' && doc.ai?.summary) {
+        return res.redirect(`/user/transcript/saved/${doc._id}`);
+      }
+
+      // Reset stale queued
+      const now = Date.now();
+      const queuedAt = doc.ai?.updatedAt ? new Date(doc.ai.updatedAt).getTime() : 0;
+      const QUEUE_STALE_MS = 5 * 60 * 1000;
+
+      if (doc.ai?.status === 'queued' && queuedAt && (now - queuedAt) > QUEUE_STALE_MS) {
+        await Transcript.updateOne(
+          { _id: doc._id },
+          { $set: { 'ai.status': 'none', 'ai.error': 'stale queued reset', 'ai.updatedAt': new Date() } }
+        );
+        doc = await Transcript.findById(doc._id);
+      }
+
+      // Acquire lock
       await Transcript.updateOne(
-        { _id: doc._id },
-        { $set: { 'ai.status': 'none', 'ai.error': 'stale queued reset', 'ai.updatedAt': new Date() } }
-      );
-      doc = await Transcript.findById(doc._id);
-    }
-
-    // 3) Ensure AI summary exists (once)
-    if (!doc.ai || doc.ai.status === 'none') {
-      // mark queued to prevent duplicate summary generation
-      await Transcript.updateOne(
-        { _id: doc._id, 'ai.status': { $in: ['none', undefined] } },
+        {
+          _id: doc._id,
+          $or: [
+            { 'ai.status': { $in: ['none', 'error'] } },
+            { 'ai.status': { $exists: false } },
+          ],
+        },
         { $set: { 'ai.status': 'queued', 'ai.updatedAt': new Date() } }
       );
 
-      // reload to check state
       doc = await Transcript.findById(doc._id);
 
-      // only the first request that successfully set queued should generate
-      if (doc.ai.status === 'queued' && !doc.ai.summary) {
+      // Generate summary
+      if (doc.ai?.status === 'queued' && !doc.ai?.summary) {
         try {
+          console.log('AI summary generating:', String(doc._id), 'len:', (doc.text || '').length);
+
           const { model, summary } = await generateMeetingSummary({
             text: doc.text || '',
             subject: doc.subject || req.query.subject || '',
@@ -375,12 +462,14 @@ router.get('/transcript/ensure/:meetingId/:transcriptId', requireUser, ensureUse
                 'ai.model': model,
                 'ai.summary': summary,
                 'ai.error': '',
-                'ai.createdAt': doc.ai.createdAt || new Date(),
+                'ai.createdAt': doc.ai?.createdAt || new Date(),
                 'ai.updatedAt': new Date(),
               },
             }
           );
         } catch (err) {
+          console.log('AI summary failed:', err);
+
           await Transcript.updateOne(
             { _id: doc._id },
             {
@@ -393,20 +482,18 @@ router.get('/transcript/ensure/:meetingId/:transcriptId', requireUser, ensureUse
           );
         }
       }
-    }
 
-    // redirect to saved transcript view page
-    return res.redirect(`/user/transcript/saved/${doc._id}`);
-  } catch (e) {
-    return res.status(500).send(e.message || String(e));
+      return res.redirect(`/user/transcript/saved/${doc._id}`);
+    } catch (e) {
+      return res.status(500).send(e.message || String(e));
+    }
   }
-});
+);
 
 router.get('/transcript/saved/:id', requireUser, async (req, res) => {
   const doc = await Transcript.findById(req.params.id);
   if (!doc) return res.status(404).send('Transcript not found');
 
-  // org isolation
   if (String(doc.orgId) !== String(req.user.org?._id)) return res.status(403).send('Forbidden');
 
   return res.render('user/transcript_saved', {
@@ -429,6 +516,5 @@ router.get('/transcript/saved/:id/summary', requireUser, async (req, res) => {
     doc,
   });
 });
-
 
 module.exports = router;

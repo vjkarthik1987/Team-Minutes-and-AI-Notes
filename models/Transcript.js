@@ -5,20 +5,22 @@ const TranscriptSchema = new mongoose.Schema(
   {
     orgId: { type: mongoose.Schema.Types.ObjectId, ref: 'Org', required: true, index: true },
 
+    // ✅ Calendar occurrence ID (unique per recurring occurrence)
+    eventId: { type: String, default: '', index: true },
+
     // Graph identifiers
     meetingId: { type: String, required: true },
     transcriptId: { type: String, required: true },
 
-    // Meeting metadata (optional but useful)
     subject: { type: String },
     startDateTime: { type: String },
     endDateTime: { type: String },
 
-    // Stored transcript
-    vtt: { type: String, default: '' },
-    text: { type: String, default: '' }, // cleaned/plain text
+    participantEmails: { type: [String], default: [], index: true },
 
-    // Summary (created once)
+    vtt: { type: String, default: '' },
+    text: { type: String, default: '' },
+
     ai: {
       status: { type: String, enum: ['none', 'queued', 'done', 'error'], default: 'none' },
       model: { type: String, default: '' },
@@ -31,7 +33,8 @@ const TranscriptSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ✅ This is the key: “create only once”
-TranscriptSchema.index({ orgId: 1, meetingId: 1, transcriptId: 1 }, { unique: true });
+// ✅ Unique per occurrence + transcript
+// (eventId might be empty for old records, but new ones will have it)
+TranscriptSchema.index({ orgId: 1, eventId: 1, transcriptId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Transcript', TranscriptSchema);

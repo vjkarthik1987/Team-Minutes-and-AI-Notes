@@ -83,7 +83,7 @@ async function findMeetingByJoinUrl(accessToken, joinUrl) {
   for (const v of vals) {
     const safe = escapeODataString(v);
     filters.push(`JoinWebUrl eq '${safe}'`);
-    filters.push(`joinWebUrl eq '${safe}'`);               // some payloads use lower-case in docs/examples
+    filters.push(`joinWebUrl eq '${safe}'`); // some payloads use lower-case
     filters.push(`startswith(JoinWebUrl,'${safe}')`);
     filters.push(`startswith(joinWebUrl,'${safe}')`);
   }
@@ -147,8 +147,6 @@ async function findMeetingsByTime(accessToken, event) {
   return [];
 }
 
-
-
 /**
  * List transcripts for a meetingId
  * beta/communications is typically the most reliable.
@@ -197,6 +195,55 @@ async function getTranscript(accessToken, meetingId, transcriptId, accept = 'tex
   }
 
   throw new Error('Transcript content not available.');
+}
+
+/* ------------------------------
+   Recurring meeting fix helpers
+   ------------------------------ */
+
+function toMs(dt) {
+  if (!dt) return NaN;
+  const t = Date.parse(dt);
+  return Number.isFinite(t) ? t : NaN;
+}
+
+/**
+ * Pick the transcript that best matches THIS calendar occurrence.
+ * Heuristic:
+ * - anchor on event end time (preferred), else start time
+ * - prefer transcripts created within a reasonable window around the meeting
+ * - choose the closest transcript to the anchor
+ */
+function pickBestTranscriptForEvent(items, ev) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+
+  const startMs = toMs(ev?.start?.dateTime || ev?.startDateTime);
+  const endMs = toMs(ev?.end?.dateTime || ev?.endDateTime);
+  const anchor = Number.isFinite(endMs) ? endMs : startMs;
+
+  // If we can't anchor, fall back to latest createdDateTime
+  if (!Number.isFinite(anchor)) {
+    const sorted = [...items].sort((a, b) => toMs(b.createdDateTime) - toMs(a.createdDateTime));
+    return sorted[0] || null;
+  }
+
+  // Transcript generation can be delayed after meeting end.
+  // Window: [start-2h, end+8h] (or around anchor if start/end missing)
+  const windowStart = Number.isFinite(startMs) ? (startMs - 2 * 60 * 60 * 1000) : (anchor - 2 * 60 * 60 * 1000);
+  const windowEnd = Number.isFinite(endMs) ? (endMs + 8 * 60 * 60 * 1000) : (anchor + 8 * 60 * 60 * 1000);
+
+  const scored = items.map(t => {
+    const c = toMs(t.createdDateTime);
+    const inWindow = Number.isFinite(c) && c >= windowStart && c <= windowEnd;
+    const dist = Number.isFinite(c) ? Math.abs(c - anchor) : Number.POSITIVE_INFINITY;
+    return { t, inWindow, dist, c };
+  });
+
+  const inWin = scored.filter(x => x.inWindow).sort((a, b) => a.dist - b.dist);
+  if (inWin.length) return inWin[0].t;
+
+  const any = scored.sort((a, b) => a.dist - b.dist);
+  return any[0]?.t || null;
 }
 
 /**
@@ -258,14 +305,25 @@ async function annotateEventsWithTranscripts(accessToken, events, opts = {}) {
         return;
       }
 
-      ev._hasTranscript = true;
-      ev._transcripts = items.map(t => ({
-        id: t.id,
-        createdDateTime: t.createdDateTime || null,
-        meetingId: mtg.id,
-      }));
+      // ✅ Recurring fix: choose the transcript matching THIS occurrence
+      const best = pickBestTranscriptForEvent(items, ev);
 
-      ev._tReason = `found(${items.length})`;
+      if (!best?.id) {
+        ev._hasTranscript = false;
+        ev._tReason = `no-best-transcript (endpoint=${used || 'none'})`;
+        return;
+      }
+
+      ev._hasTranscript = true;
+
+      // Store only the best one (so UI links resolve correctly per occurrence)
+      ev._transcripts = [{
+        id: best.id,
+        createdDateTime: best.createdDateTime || null,
+        meetingId: mtg.id,
+      }];
+
+      ev._tReason = `found(${items.length}) best=${best.id}`;
       dbg('joinUrl=', joinUrl);
       dbg('meeting from joinUrl?', !!mtg);
 
