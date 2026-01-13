@@ -1,0 +1,14 @@
+<% layout('layout') %>
+
+<h1>Join your organization</h1>
+<p>Enter your org slug, then sign in with Office 365.</p>
+
+<form method="POST" action="/user/login" style="max-width:420px;">
+  <div style="margin:12px 0;">
+    <label><strong>Org slug</strong></label><br/>
+    <input name="slug" type="text" required placeholder="suntec"
+           style="width:100%;padding:10px;" />
+  </div>
+
+  <button type="submit" style="padding:10px 14px;">Continue</button>
+</form>

@@ -1,0 +1,64 @@
+<% layout('layout') %>
+
+<h1>Saved Transcript</h1>
+
+<p>
+  <strong>Org:</strong> <%= org.name %><br/>
+  <strong>Subject:</strong> <%= doc.subject || '(no subject)' %><br/>
+  <strong>Time:</strong> <%= doc.startDateTime || '' %> → <%= doc.endDateTime || '' %>
+</p>
+
+<hr style="margin:18px 0;" />
+
+<% if (doc.ai?.status === 'done' && doc.ai?.summary) { %>
+  <p>
+    ✅ AI summary ready:
+    <a href="/user/transcript/saved/<%= doc._id %>/summary" target="_blank" rel="noopener">Open AI Summary</a>
+  </p>
+<% } else if (doc.ai?.status === 'queued') { %>
+  <p>⏳ AI summary is being generated… refresh in a few seconds.</p>
+<% } else if (doc.ai?.status === 'error') { %>
+  <p style="color:#b00020;">AI summary failed: <%= doc.ai.error %></p>
+<% } else { %>
+  <p>AI summary not created yet.</p>
+<% } %>
+
+<hr style="margin:18px 0;" />
+
+<h3>Transcript (plain text)</h3>
+<p>
+  <a href="#" onclick="copyTranscript(); return false;">📋 Copy Transcript</a>
+</p>
+
+<pre style="white-space:pre-wrap; padding:12px; border:1px solid #ddd; border-radius:8px;"><%= doc.text %></pre>
+<script>
+  async function copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e2) {
+        return false;
+      }
+    }
+  }
+
+  async function copyTranscript() {
+    const text = `<%- JSON.stringify(String(doc.text || '')) %>`;
+    const ok = await copyToClipboard(text);
+
+    if (ok) alert('✅ Transcript copied to clipboard');
+    else alert('⚠️ Copy failed. Try selecting and copying manually.');
+  }
+</script>

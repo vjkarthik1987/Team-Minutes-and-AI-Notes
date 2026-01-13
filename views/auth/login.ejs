@@ -1,0 +1,22 @@
+<% layout('layout') %>
+
+<h1>Org login</h1>
+<p>Log in using your org credentials (local).</p>
+
+<form method="POST" action="/auth/login" style="max-width:420px;">
+  <div style="margin:12px 0;">
+    <label><strong>Org email</strong></label><br/>
+    <input name="email" type="email" required style="width:100%;padding:10px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label><strong>Password</strong></label><br/>
+    <input name="password" type="password" required style="width:100%;padding:10px;" />
+  </div>
+
+  <button type="submit" style="padding:10px 14px;">Log in</button>
+</form>
+
+<p style="margin-top:16px;">
+  New org? <a href="/auth/signup">Create an org</a>
+</p>

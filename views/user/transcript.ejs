@@ -1,0 +1,33 @@
+<% layout('layout') %>
+
+<%
+const _err = error || null;
+const _meta = meta || {};
+%>
+
+<h1>Meeting transcript</h1>
+
+<p>
+  <strong>User:</strong> <%= user.email %><br/>
+  <strong>Org:</strong> <%= org.name %>
+</p>
+
+<% if (_meta.subject || _meta.start || _meta.end) { %>
+  <hr style="margin:18px 0;" />
+  <p>
+    <strong>Subject:</strong> <%= _meta.subject || '(no subject)' %><br/>
+    <strong>Time:</strong> <%= _meta.start || '' %> → <%= _meta.end || '' %>
+  </p>
+<% } %>
+
+<% if (_err) { %>
+  <p style="color:#b00020;"><strong>Error:</strong> <%= _err %></p>
+<% } else { %>
+  <hr style="margin:18px 0;" />
+  <pre style="white-space:pre-wrap; padding:12px; border:1px solid #ddd; border-radius:8px;">
+<%= vtt %>
+  </pre>
+<% } %>
+
+<hr style="margin:18px 0;" />
+<p><a href="/user/calendar">← Back to calendar</a></p>

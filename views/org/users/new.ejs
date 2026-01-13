@@ -1,0 +1,28 @@
+<% layout('layout') %>
+
+<h1>Add user</h1>
+<p><strong>Org:</strong> <%= org.name %></p>
+
+<form method="POST" action="/org/users" style="max-width:520px; margin-top:16px;">
+  <div style="margin:12px 0;">
+    <label><strong>Name</strong></label><br/>
+    <input name="name" type="text" placeholder="Optional" style="width:100%;padding:10px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label><strong>Email</strong></label><br/>
+    <input name="email" type="email" required placeholder="user@yourcompany.com"
+           style="width:100%;padding:10px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label><strong>Role</strong></label><br/>
+    <select name="role" style="width:100%;padding:10px;">
+      <option value="user" selected>User</option>
+      <option value="admin">Admin</option>
+    </select>
+  </div>
+
+  <button type="submit" style="padding:10px 14px;">Create user</button>
+  <a href="/org/users" style="margin-left:10px;">Cancel</a>
+</form>

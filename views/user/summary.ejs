@@ -1,0 +1,205 @@
+<% layout('layout') %>
+
+<style>
+  .page-wrap { max-width: 920px; margin: 0 auto; padding: 18px 14px; }
+  .header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .title { margin: 0 0 6px 0; font-size: 28px; letter-spacing: -0.2px; }
+  .meta { margin:0; opacity: .85; line-height: 1.4; }
+  .pill {
+    display:inline-flex; align-items:center; gap:8px;
+    padding: 6px 10px; border-radius: 999px; font-size: 12px;
+    border: 1px solid #e6e6e6; background: #fafafa;
+  }
+  .pill.ok { border-color:#d7f0df; background:#f2fbf5; }
+  .pill.wait { border-color:#ffe7b8; background:#fff8e8; }
+  .pill.err { border-color:#ffd0d0; background:#fff1f1; }
+  .card {
+    margin-top: 16px;
+    border: 1px solid #e7e7e7; border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+  }
+  .card-hd {
+    padding: 12px 14px;
+    border-bottom: 1px solid #efefef;
+    display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  }
+  .card-hd h2 { margin:0; font-size: 14px; letter-spacing: .2px; text-transform: uppercase; opacity:.75; }
+  .card-bd { padding: 14px; }
+  .summary { line-height: 1.55; font-size: 15px; color: #1a1a1a; }
+  .summary h3 { margin: 18px 0 8px; font-size: 16px; }
+  .summary ul { margin: 8px 0 14px 18px; padding:0; }
+  .summary li { margin: 6px 0; }
+  .quote { margin: 10px 0; padding: 10px 12px; border-left: 3px solid #e0e0e0; background:#fafafa; border-radius: 8px; }
+  .small { font-size: 12px; opacity: .75; }
+  .actions { margin-top: 14px; display:flex; gap:10px; flex-wrap:wrap; }
+  .btn {
+    display:inline-block; padding: 8px 10px; border-radius: 10px;
+    border: 1px solid #e0e0e0; background:#fff; text-decoration:none; color:#111;
+    font-size: 13px;
+  }
+  .btn:hover { background:#f7f7f7; }
+</style>
+
+<div class="page-wrap">
+  <div class="header">
+    <div>
+      <h1 class="title">AI Summary</h1>
+      <p class="meta">
+        <strong>Org:</strong> <%= org.name %><br/>
+        <strong>Subject:</strong> <%= doc.subject || '(no subject)' %>
+      </p>
+    </div>
+
+    <% if (doc.ai?.status === 'done') { %>
+      <span class="pill ok">✅ Ready</span>
+    <% } else if (doc.ai?.status === 'queued') { %>
+      <span class="pill wait">⏳ Generating…</span>
+    <% } else if (doc.ai?.status === 'error') { %>
+      <span class="pill err">⚠️ Failed</span>
+    <% } else { %>
+      <span class="pill">ℹ️ Not created</span>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">
+      <h2>Notes</h2>
+      <% if (doc.ai?.model) { %>
+        <span class="small">Model: <%= doc.ai.model %></span>
+      <% } %>
+    </div>
+    <div class="actions">
+      <a class="btn" href="/user/transcript/saved/<%= doc._id %>" rel="noopener">← Back to transcript</a>
+      <a class="btn" href="/user/calendar" rel="noopener">Calendar</a>
+      <a class="btn" href="#" onclick="copySummary(); return false;">📋 Copy Summary</a>
+    </div>
+
+    <div class="card-bd">
+      <% if (doc.ai?.status === 'done' && doc.ai?.summary) { %>
+
+        <div class="summary">
+          <%
+// --- Minimal "markdown-ish" renderer (safe):
+// - "### Heading" -> <h3>
+// - "- bullet"    -> <ul><li>
+// - '1. "quote"' lines -> quote block
+// - everything else -> <p>
+            const raw = String(doc.ai.summary || '');
+            const lines = raw.split(/\r?\n/);
+
+            let inList = false;
+
+            function esc(s) {
+              return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+            }
+
+            function closeListIfNeeded() {
+              if (inList) { %></ul><% inList = false; }
+            }
+
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i];
+              const t = line.trim();
+
+              if (!t) { closeListIfNeeded(); continue; }
+
+              // Headings like ### Summary
+              if (t.startsWith('### ')) {
+                closeListIfNeeded();
+          %>
+                <h3><%= t.slice(4) %></h3>
+          <%
+                continue;
+              }
+
+              // Bullets "- ..."
+              if (t.startsWith('- ')) {
+                if (!inList) { inList = true; %><ul><% }
+          %>
+                <li><%= t.slice(2) %></li>
+          <%
+                continue;
+              }
+
+              // Quote-ish lines: 1. "..."
+              if (/^\d+\.\s*".*"$/.test(t) || /^".*"$/.test(t)) {
+                closeListIfNeeded();
+          %>
+                <div class="quote"><%= t.replace(/^\d+\.\s*/, '') %></div>
+          <%
+                continue;
+              }
+
+              // Default paragraph
+              closeListIfNeeded();
+          %>
+              <p><%- esc(t) %></p>
+          <%
+            }
+            // close any open list
+            if (inList) { %></ul><% }
+          %>
+        </div>
+
+        
+
+      <% } else if (doc.ai?.status === 'queued') { %>
+        <p>⏳ Summary is being generated. Please refresh in a few seconds.</p>
+        <div class="actions">
+          <a class="btn" href="/user/transcript/saved/<%= doc._id %>">← Back to transcript</a>
+          <a class="btn" href="" onclick="location.reload(); return false;">Refresh</a>
+        </div>
+      <% } else if (doc.ai?.status === 'error') { %>
+        <p style="color:#b00020;"><strong>Summary failed:</strong> <%= doc.ai.error %></p>
+        <div class="actions">
+          <a class="btn" href="/user/transcript/saved/<%= doc._id %>">← Back to transcript</a>
+        </div>
+      <% } else { %>
+        <p>No summary yet.</p>
+        <div class="actions">
+          <a class="btn" href="/user/transcript/saved/<%= doc._id %>">← Back to transcript</a>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<script>
+  async function copyToClipboard(text) {
+    // Try modern Clipboard API
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      // Fallback for older browsers
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e2) {
+        return false;
+      }
+    }
+  }
+
+  async function copySummary() {
+    const summary = `<%- JSON.stringify(String(doc.ai?.summary || '')) %>`;
+    const ok = await copyToClipboard(summary);
+
+    if (ok) alert('✅ Summary copied to clipboard');
+    else alert('⚠️ Copy failed. Try selecting and copying manually.');
+  }
+</script>

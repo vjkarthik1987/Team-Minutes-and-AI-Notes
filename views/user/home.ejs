@@ -1,0 +1,47 @@
+<% layout('layout') %>
+
+<h1>User Home</h1>
+
+<p>
+  <strong>Signed in as:</strong> <%= user.email %>
+</p>
+
+<hr style="margin:18px 0;" />
+
+<h2>My workspace</h2>
+
+<ul>
+  <li>
+    <a href="/user/calendar">My calendar</a>
+  </li>
+</ul>
+
+<hr style="margin:18px 0;" />
+
+<h2>Client (Org) Details</h2>
+
+<ul style="line-height:1.8;">
+  <li><strong>Name:</strong> <%= org.name %></li>
+  <li><strong>Slug:</strong> <%= org.slug %></li>
+
+  <li>
+    <strong>Allowed domains:</strong>
+    <%= (org.allowedDomains && org.allowedDomains.length) ? org.allowedDomains.join(', ') : '-' %>
+  </li>
+
+  <li><strong>Graph connected:</strong> <%= org.graph?.isConnected ? 'Yes' : 'No' %></li>
+  <li><strong>Graph health:</strong> <%= org.graph?.healthStatus || '-' %></li>
+
+  <li><strong>Check transcripts:</strong> <%= org.features?.checkTranscripts ? 'Yes' : 'No' %></li>
+  <li><strong>Debug transcripts:</strong> <%= org.features?.debugTranscripts ? 'Yes' : 'No' %></li>
+
+  <li><strong>Meeting retention days:</strong> <%= org.retention?.meetingDays ?? '-' %></li>
+  <li><strong>Transcript retention days:</strong> <%= org.retention?.transcriptDays ?? '-' %></li>
+  <li><strong>Store raw transcript:</strong> <%= org.retention?.storeRawTranscript ? 'Yes' : 'No' %></li>
+</ul>
+
+<hr style="margin:18px 0;" />
+
+<form method="POST" action="/user/logout">
+  <button type="submit" style="padding:10px 14px;">Logout</button>
+</form>
