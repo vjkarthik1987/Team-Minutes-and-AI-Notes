@@ -1,124 +1,195 @@
 <% layout('layout') %>
 
 <%
-const _prev = Array.isArray(prevEvents) ? prevEvents : [];
-const _err  = error || null;
+  function fmtRange(startIso, endIso) {
+    const s = startIso ? new Date(startIso) : null;
+    const e = endIso ? new Date(endIso) : null;
+    if (!s || isNaN(s.getTime())) return '';
 
-function pickStart(ev) {
-  return ev?.startDateTime || ev?.start?.dateTime || '';
-}
-function pickEnd(ev) {
-  return ev?.endDateTime || ev?.end?.dateTime || '';
-}
-function pickLoc(ev) {
-  return ev?.location || ev?.location?.displayName || '';
-}
-function pickEventId(ev) {
-  return ev?.eventId || ev?.id || '';
-}
-function pickTranscript(ev) {
-  // cached shape: ev.transcripts[0] = { meetingId, transcriptId }
-  if (Array.isArray(ev?.transcripts) && ev.transcripts.length) {
-    return {
-      meetingId: ev.transcripts[0].meetingId,
-      transcriptId: ev.transcripts[0].transcriptId,
-    };
+    const dateFmt = new Intl.DateTimeFormat('en-IN', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    const timeFmt = new Intl.DateTimeFormat('en-IN', {
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+
+    const dateStr = dateFmt.format(s);
+    const startStr = timeFmt.format(s);
+
+    if (!e || isNaN(e.getTime())) {
+      return `${dateStr} • ${startStr}`;
+    }
+
+    const endStr = timeFmt.format(e);
+    const durMin = Math.max(0, Math.round((e - s) / 60000));
+    const dur =
+      durMin >= 60
+        ? `${Math.floor(durMin / 60)}h ${durMin % 60}m`
+        : `${durMin}m`;
+
+    return `${dateStr} • ${startStr} – ${endStr} (${dur})`;
   }
-  // graph shape: ev._transcripts[0] = { meetingId, id }
-  if (ev?._hasTranscript && Array.isArray(ev?._transcripts) && ev._transcripts.length) {
-    return {
-      meetingId: ev._transcripts[0].meetingId,
-      transcriptId: ev._transcripts[0].id,
-    };
+
+  function dayKey(iso) {
+    const d = new Date(iso);
+    d.setHours(0,0,0,0);
+    return d.toISOString();
   }
-  return null;
-}
+
+  const groups = {};
+  (prevEvents || []).forEach(ev => {
+    const key = dayKey(ev.startDateTime);
+    groups[key] = groups[key] || [];
+    groups[key].push(ev);
+  });
+
+  const days = Object.keys(groups).sort((a,b)=> new Date(b)-new Date(a));
 %>
 
-<h1>My Calendar</h1>
-<!-- OPTIONAL: Add this near the top of views/user/calendar.ejs (under the title) -->
-<%
-  const _pastDays = typeof pastDays !== 'undefined' ? pastDays : 30;
-  const _lastSyncedAt = (typeof lastSyncedAt !== 'undefined') ? lastSyncedAt : null;
-%>
-
-<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin: 8px 0 16px;">
-  <div style="font-size:13px; opacity:.8;">
-    <% if (lastSyncedAt) { %>
-      Last synced: <%= new Date(lastSyncedAt).toLocaleString() %>
-    <% } else { %>
-      Not synced yet (click Refresh)
-    <% } %>
+<div class="page-head">
+  <div>
+    <h1 class="title">Meetings with transcripts</h1>
+    <p class="muted">
+      Cached view — opens instantly. Refresh only when needed.
+    </p>
   </div>
 
-  <div style="display:flex; gap:10px; align-items:center;">
-    <a
-      href="/user/calendar?pastDays=<%= encodeURIComponent(pastDays || 30) %>&refresh=1"
-      style="padding:8px 12px; border:1px solid #ddd; border-radius:10px; text-decoration:none;"
-    >
-      Refresh
-    </a>
-
-    <a href="/user/home" style="font-size:13px;">Back</a>
+  <div class="page-head__right">
+    <a class="btn btn-ghost" href="/user/calendar?refresh=1">↻ Refresh</a>
   </div>
 </div>
 
-<% if (error) { %>
-  <div style="padding:10px 12px; border:1px solid #fca5a5; background:#fef2f2; border-radius:10px; margin-bottom:14px;">
-    <strong>Error:</strong> <%= error %>
+<% if (!days.length) { %>
+  <div class="card empty">
+    <p>No meetings with transcripts found.</p>
   </div>
 <% } %>
 
+<% days.forEach(day => { %>
+  <div class="day-block">
+    <div class="day-title">
+      <%= new Intl.DateTimeFormat('en-IN', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      }).format(new Date(day)) %>
+    </div>
 
-<p><a href="/user/home">← Back to home</a></p>
+    <% groups[day].forEach(ev => { 
+        const t = fmtRange(ev.startDateTime, ev.endDateTime);
+        const tr = ev.transcripts?.[0];
+    %>
 
-<p>
-  <strong>User:</strong> <%= user.email %><br/>
-  <strong>Org:</strong> <%= org.name %>
-</p>
+      <a class="meeting-card"
+         href="/user/transcript/ensure/<%= tr.meetingId %>/<%= tr.transcriptId %>?eventId=<%= ev.eventId %>&subject=<%= encodeURIComponent(ev.subject || '') %>&start=<%= ev.startDateTime %>&end=<%= ev.endDateTime %>">
 
-<% if (_err) { %>
-  <p style="color:#b00020; margin-top:12px;">
-    <strong>Error:</strong> <%= _err %>
-  </p>
-<% } %>
+        <div class="meeting-main">
+          <div class="meeting-subject">
+            <%= ev.subject || '(no subject)' %>
+          </div>
 
-<hr style="margin:18px 0;" />
+          <div class="meeting-meta">
+            <%= t %>
+          </div>
+        </div>
 
-<h2>Last 30 days - including today</h2>
+        <div class="meeting-cta">
+          Open →
+        </div>
+      </a>
 
-<% if (_prev.length === 0) { %>
-  <p>No events found.</p>
-<% } else { %>
-  <ul>
-    <% _prev.forEach(ev => { %>
-      <%
-        const startDT = pickStart(ev);
-        const endDT   = pickEnd(ev);
-        const loc     = pickLoc(ev);
-        const eventId = pickEventId(ev);
-        const tx      = pickTranscript(ev);
-      %>
-
-      <li style="margin-bottom:12px;">
-        <strong><%= ev.subject || '(no subject)' %></strong><br/>
-        <span><%= startDT %> → <%= endDT %></span><br/>
-
-        <% if (loc) { %>
-          <span><%= loc %></span><br/>
-        <% } %>
-
-        <% if (tx) { %>
-          <a
-            href="/user/transcript/ensure/<%= tx.meetingId %>/<%= tx.transcriptId %>?eventId=<%= encodeURIComponent(eventId) %>&subject=<%= encodeURIComponent(ev.subject || '') %>&start=<%= encodeURIComponent(startDT) %>&end=<%= encodeURIComponent(endDT) %>"
-            target="_blank"
-            rel="noopener"
-          >Transcript</a>
-        <% } %>
-      </li>
     <% }) %>
-  </ul>
-<% } %>
+  </div>
+<% }) %>
 
-<hr style="margin:18px 0;" />
+<style>
+/* Page */
+.page-head{
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:18px;
+}
+.title{
+  margin:0;
+  font-size:28px;
+  letter-spacing:-0.02em;
+}
+.muted{ color:var(--muted); font-size:13px; }
 
+/* Day grouping */
+.day-block{ margin-top:22px; }
+.day-title{
+  font-size:13px;
+  font-weight:600;
+  color:var(--muted);
+  margin-bottom:10px;
+}
+
+/* Meeting card */
+.meeting-card{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:14px 16px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:#fff;
+  text-decoration:none;
+  color:var(--text);
+  margin-bottom:10px;
+  transition: box-shadow .15s ease, transform .15s ease;
+}
+.meeting-card:hover{
+  box-shadow:0 8px 20px rgba(0,0,0,.06);
+  transform: translateY(-1px);
+}
+
+.meeting-main{ min-width:0; }
+.meeting-subject{
+  font-size:15px;
+  font-weight:600;
+  line-height:1.3;
+}
+.meeting-meta{
+  margin-top:4px;
+  font-size:13px;
+  color:var(--muted);
+}
+
+/* CTA */
+.meeting-cta{
+  font-size:13px;
+  color:var(--accent);
+  font-weight:600;
+  white-space:nowrap;
+}
+
+/* Empty */
+.card.empty{
+  padding:24px;
+  border:1px dashed var(--border);
+  border-radius:14px;
+  color:var(--muted);
+}
+
+/* Mobile */
+@media (max-width:720px){
+  .title{ font-size:24px; }
+  .meeting-card{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:8px;
+  }
+  .meeting-cta{
+    align-self:flex-end;
+  }
+}
+</style>

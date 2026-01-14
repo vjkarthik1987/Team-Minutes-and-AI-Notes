@@ -1,183 +1,336 @@
 <% layout('layout') %>
 
+<%
+  // ---- Safe defaults ----
+  const _orgName = org?.name || 'Org';
+  const _subject = doc?.subject || 'Meeting notes';
+  const _start = String(doc?.startDateTime || '');
+  const _end = String(doc?.endDateTime || '');
+
+  // We’ll format time on frontend too, but show fallback quickly.
+%>
+
 <style>
-  .page-wrap { max-width: 920px; margin: 0 auto; padding: 18px 14px; }
-  .header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-  .title { margin: 0 0 6px 0; font-size: 28px; letter-spacing: -0.2px; }
-  .meta { margin:0; opacity: .85; line-height: 1.4; }
-  .pill {
+  /* -------- Transcript-style premium doc page -------- */
+  .page-wrap { max-width: 980px; margin: 0 auto; padding: 18px 14px; }
+
+  .topline {
+    display:flex; align-items:center; justify-content:space-between;
+    gap: 12px; flex-wrap:wrap; margin-bottom: 10px;
+  }
+
+  .back-link{
     display:inline-flex; align-items:center; gap:8px;
-    padding: 6px 10px; border-radius: 999px; font-size: 12px;
-    border: 1px solid #e6e6e6; background: #fafafa;
+    font-size: 13px; color:#444; text-decoration:none;
+    padding: 8px 10px; border-radius: 10px;
+    border: 1px solid #eee; background:#fff;
   }
-  .pill.ok { border-color:#d7f0df; background:#f2fbf5; }
-  .pill.wait { border-color:#ffe7b8; background:#fff8e8; }
-  .pill.err { border-color:#ffd0d0; background:#fff1f1; }
-  .card {
-    margin-top: 16px;
-    border: 1px solid #e7e7e7; border-radius: 12px;
-    background: #fff;
-    box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+  .back-link:hover{ background:#fafafa; text-decoration:none; }
+
+  .status{
+    font-size: 12px; color:#666;
+    padding: 6px 10px; border-radius: 999px;
+    border: 1px solid #eee; background:#fff;
   }
-  .card-hd {
-    padding: 12px 14px;
-    border-bottom: 1px solid #efefef;
-    display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  .status.done{ border-color:#d7f0df; background:#f2fbf5; color:#166534; }
+  .status.wait{ border-color:#ffe7b8; background:#fff8e8; color:#92400e; }
+  .status.err{ border-color:#ffd0d0; background:#fff1f1; color:#991b1b; }
+
+  .doc-title{
+    margin: 10px 0 6px 0;
+    font-size: 30px;
+    font-weight: 650;
+    letter-spacing: -0.45px;
+    line-height: 1.12;
   }
-  .card-hd h2 { margin:0; font-size: 14px; letter-spacing: .2px; text-transform: uppercase; opacity:.75; }
-  .card-bd { padding: 14px; }
-  .summary { line-height: 1.55; font-size: 15px; color: #1a1a1a; }
-  .summary h3 { margin: 18px 0 8px; font-size: 16px; }
-  .summary ul { margin: 8px 0 14px 18px; padding:0; }
-  .summary li { margin: 6px 0; }
-  .quote { margin: 10px 0; padding: 10px 12px; border-left: 3px solid #e0e0e0; background:#fafafa; border-radius: 8px; }
-  .small { font-size: 12px; opacity: .75; }
-  .actions { margin-top: 14px; display:flex; gap:10px; flex-wrap:wrap; }
-  .btn {
-    display:inline-block; padding: 8px 10px; border-radius: 10px;
-    border: 1px solid #e0e0e0; background:#fff; text-decoration:none; color:#111;
+
+  .doc-meta{
+    display:flex; align-items:center; flex-wrap:wrap;
+    gap: 8px;
+    margin: 0 0 14px 0;
     font-size: 13px;
+    color:#6b7280;
   }
-  .btn:hover { background:#f7f7f7; }
+  .dot{ opacity:.45; }
+
+  .toolbar{
+    display:flex; align-items:center; justify-content:space-between;
+    gap: 10px; flex-wrap:wrap;
+    margin: 12px 0 18px 0;
+  }
+
+  .tools{
+    display:flex; gap:10px; flex-wrap:wrap;
+  }
+
+  .btn{
+    display:inline-flex; align-items:center; gap:8px;
+    padding: 9px 11px;
+    border-radius: 10px;
+    border: 1px solid #eee;
+    background:#fff;
+    font-size: 13px;
+    color:#111;
+    text-decoration:none;
+    cursor:pointer;
+  }
+  .btn:hover{ background:#fafafa; }
+  .btn-accent{
+    border-color: rgba(249,115,22,.35);
+    background: rgba(249,115,22,.08);
+    color:#9a3412;
+  }
+  .btn-accent:hover{
+    background: rgba(249,115,22,.12);
+  }
+
+  .divider{
+    border:none; border-top: 1px solid #eee;
+    margin: 18px 0;
+  }
+
+  .doc{
+    max-width: 760px;
+    font-size: 16px;
+    line-height: 1.7;
+    color:#111827;
+  }
+
+  .doc h3{
+    margin: 28px 0 10px;
+    font-size: 18px;
+    letter-spacing: -0.2px;
+  }
+
+  .doc p{
+    margin: 10px 0;
+  }
+
+  .doc ul{
+    margin: 10px 0 12px 18px;
+    padding:0;
+  }
+
+  .doc li{
+    margin: 8px 0;
+  }
+
+  .quote{
+    margin: 12px 0;
+    padding: 12px 12px;
+    border-left: 3px solid rgba(249,115,22,.35);
+    background: rgba(249,115,22,.06);
+    border-radius: 10px;
+    color:#111;
+  }
+
+  .muted{
+    font-size: 12px;
+    color:#6b7280;
+  }
+
+  .error{
+    color:#b91c1c;
+    font-size: 14px;
+    margin-top: 10px;
+  }
+
+  /* Mobile polish */
+  @media (max-width: 640px){
+    .page-wrap{ padding: 14px 12px; }
+    .doc-title{ font-size: 24px; }
+    .doc{ font-size: 15px; }
+    .btn{ width: fit-content; }
+  }
 </style>
 
 <div class="page-wrap">
-  <div class="header">
-    <div>
-      <h1 class="title">AI Summary</h1>
-      <p class="meta">
-        <strong>Org:</strong> <%= org.name %><br/>
-        <strong>Subject:</strong> <%= doc.subject || '(no subject)' %>
-      </p>
-    </div>
+  <div class="topline">
+    <a class="back-link" href="/user/calendar" rel="noopener">← Back to Calendar</a>
 
     <% if (doc.ai?.status === 'done') { %>
-      <span class="pill ok">✅ Ready</span>
+      <span class="status done">Summary ready</span>
     <% } else if (doc.ai?.status === 'queued') { %>
-      <span class="pill wait">⏳ Generating…</span>
+      <span class="status wait">Generating…</span>
     <% } else if (doc.ai?.status === 'error') { %>
-      <span class="pill err">⚠️ Failed</span>
+      <span class="status err">Failed</span>
     <% } else { %>
-      <span class="pill">ℹ️ Not created</span>
+      <span class="status">Not created</span>
     <% } %>
   </div>
 
-  <div class="card">
-    <div class="card-hd">
-      <h2>Notes</h2>
-      <% if (doc.ai?.model) { %>
-        <span class="small">Model: <%= doc.ai.model %></span>
+  <h1 class="doc-title"><%= _subject %></h1>
+
+  <p class="doc-meta">
+    <span><%= _orgName %></span>
+    <% if (_start || _end) { %>
+      <span class="dot">•</span>
+      <span id="prettyTime"><%= (_start && _end) ? (_start + ' → ' + _end) : (_start || _end) %></span>
+      <span class="dot">•</span>
+      <span id="prettyDuration"></span>
+    <% } %>
+    <% if (doc.ai?.model) { %>
+      <span class="dot">•</span>
+      <span class="muted">Model: <%= doc.ai.model %></span>
+    <% } %>
+  </p>
+
+  <div class="toolbar">
+    <div class="tools">
+      <a class="btn" href="/user/transcript/saved/<%= doc._id %>" rel="noopener">← Transcript</a>
+      <a class="btn btn-accent" href="#" onclick="copySummary(); return false;">📋 Copy summary</a>
+      <% if (doc.ai?.status === 'queued') { %>
+        <a class="btn" href="" onclick="location.reload(); return false;">Refresh</a>
       <% } %>
     </div>
-    <div class="actions">
-      <a class="btn" href="/user/transcript/saved/<%= doc._id %>" rel="noopener">← Back to transcript</a>
-      <a class="btn" href="/user/calendar" rel="noopener">Calendar</a>
-      <a class="btn" href="#" onclick="copySummary(); return false;">📋 Copy Summary</a>
-    </div>
 
-    <div class="card-bd">
-      <% if (doc.ai?.status === 'done' && doc.ai?.summary) { %>
+    <% if (doc.ai?.updatedAt) { %>
+      <div class="muted">Updated: <%= new Date(doc.ai.updatedAt).toLocaleString() %></div>
+    <% } %>
+  </div>
 
-        <div class="summary">
-          <%
-// --- Minimal "markdown-ish" renderer (safe):
-// - "### Heading" -> <h3>
-// - "- bullet"    -> <ul><li>
-// - '1. "quote"' lines -> quote block
-// - everything else -> <p>
-            const raw = String(doc.ai.summary || '');
-            const lines = raw.split(/\r?\n/);
+  <hr class="divider" />
 
-            let inList = false;
+  <div class="doc">
+    <% if (doc.ai?.status === 'done' && doc.ai?.summary) { %>
 
-            function esc(s) {
-              return String(s)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-            }
+      <%
+        // --- Minimal "markdown-ish" renderer (safe) ---
+        // - "### Heading" -> <h3>
+        // - "- bullet"    -> <ul><li>
+        // - "1. "quote""  -> quote block
+        // - everything else -> <p>
+        const raw = String(doc.ai.summary || '');
+        const lines = raw.split(/\r?\n/);
 
-            function closeListIfNeeded() {
-              if (inList) { %></ul><% inList = false; }
-            }
+        let inList = false;
 
-            for (let i = 0; i < lines.length; i++) {
-              const line = lines[i];
-              const t = line.trim();
+        function esc(s) {
+          return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
 
-              if (!t) { closeListIfNeeded(); continue; }
+        function closeListIfNeeded() {
+          if (inList) { %></ul><% inList = false; }
+        }
 
-              // Headings like ### Summary
-              if (t.startsWith('### ')) {
-                closeListIfNeeded();
-          %>
-                <h3><%= t.slice(4) %></h3>
-          <%
-                continue;
-              }
+        for (let i = 0; i < lines.length; i++) {
+          const t = (lines[i] || '').trim();
+          if (!t) { closeListIfNeeded(); continue; }
 
-              // Bullets "- ..."
-              if (t.startsWith('- ')) {
-                if (!inList) { inList = true; %><ul><% }
-          %>
-                <li><%= t.slice(2) %></li>
-          <%
-                continue;
-              }
+          if (t.startsWith('### ')) {
+            closeListIfNeeded();
+      %>
+            <h3><%= esc(t.slice(4)) %></h3>
+      <%
+            continue;
+          }
 
-              // Quote-ish lines: 1. "..."
-              if (/^\d+\.\s*".*"$/.test(t) || /^".*"$/.test(t)) {
-                closeListIfNeeded();
-          %>
-                <div class="quote"><%= t.replace(/^\d+\.\s*/, '') %></div>
-          <%
-                continue;
-              }
+          if (t.startsWith('- ')) {
+            if (!inList) { inList = true; %><ul><% }
+      %>
+            <li><%= esc(t.slice(2)) %></li>
+      <%
+            continue;
+          }
 
-              // Default paragraph
-              closeListIfNeeded();
-          %>
-              <p><%- esc(t) %></p>
-          <%
-            }
-            // close any open list
-            if (inList) { %></ul><% }
-          %>
-        </div>
+          if (/^\d+\.\s*".*"$/.test(t) || /^".*"$/.test(t)) {
+            closeListIfNeeded();
+      %>
+            <div class="quote"><%= esc(t.replace(/^\d+\.\s*/, '').replace(/^"|"$/g, '')) %></div>
+      <%
+            continue;
+          }
 
-        
+          closeListIfNeeded();
+      %>
+          <p><%= esc(t) %></p>
+      <%
+        }
+        if (inList) { %></ul><% }
+      %>
 
-      <% } else if (doc.ai?.status === 'queued') { %>
-        <p>⏳ Summary is being generated. Please refresh in a few seconds.</p>
-        <div class="actions">
-          <a class="btn" href="/user/transcript/saved/<%= doc._id %>">← Back to transcript</a>
-          <a class="btn" href="" onclick="location.reload(); return false;">Refresh</a>
-        </div>
-      <% } else if (doc.ai?.status === 'error') { %>
-        <p style="color:#b00020;"><strong>Summary failed:</strong> <%= doc.ai.error %></p>
-        <div class="actions">
-          <a class="btn" href="/user/transcript/saved/<%= doc._id %>">← Back to transcript</a>
-        </div>
-      <% } else { %>
-        <p>No summary yet.</p>
-        <div class="actions">
-          <a class="btn" href="/user/transcript/saved/<%= doc._id %>">← Back to transcript</a>
-        </div>
-      <% } %>
-    </div>
+    <% } else if (doc.ai?.status === 'queued') { %>
+
+      <p>Generating summary…</p>
+      <p class="muted">This usually takes a few seconds. Hit refresh once.</p>
+
+    <% } else if (doc.ai?.status === 'error') { %>
+
+      <p class="error"><strong>Summary failed:</strong> <%= doc.ai.error %></p>
+      <p class="muted">You can open the transcript and try again later.</p>
+
+    <% } else { %>
+
+      <p>No summary yet.</p>
+      <p class="muted">Open the transcript once to trigger summary generation.</p>
+
+    <% } %>
   </div>
 </div>
 
 <script>
+  // -------- Time formatting (frontend) --------
+  (function () {
+    const startRaw = <%- JSON.stringify(_start) %>;
+    const endRaw   = <%- JSON.stringify(_end) %>;
+    const elTime = document.getElementById('prettyTime');
+    const elDur  = document.getElementById('prettyDuration');
+
+    function parseISO(s){
+      const d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    function fmt(d){
+      // Example: Tue, 14 Jan • 3:00 PM
+      try {
+        return d.toLocaleString(undefined, {
+          weekday: 'short',
+          day: '2-digit',
+          month: 'short',
+          hour: 'numeric',
+          minute: '2-digit'
+        });
+      } catch (e) {
+        return d.toString();
+      }
+    }
+
+    function minutesToHuman(mins){
+      if (!Number.isFinite(mins) || mins <= 0) return '';
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      if (h && m) return `${h}h ${m}m`;
+      if (h) return `${h}h`;
+      return `${m}m`;
+    }
+
+    const s = parseISO(startRaw);
+    const e = parseISO(endRaw);
+
+    if (elTime && (s || e)) {
+      if (s && e) elTime.textContent = `${fmt(s)} → ${e.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' })}`;
+      else if (s) elTime.textContent = fmt(s);
+      else elTime.textContent = fmt(e);
+    }
+
+    if (elDur && s && e) {
+      const mins = Math.max(0, Math.round((e.getTime() - s.getTime()) / 60000));
+      elDur.textContent = minutesToHuman(mins);
+    }
+  })();
+
+  // -------- Copy summary --------
   async function copyToClipboard(text) {
-    // Try modern Clipboard API
     try {
       await navigator.clipboard.writeText(text);
       return true;
     } catch (e) {
-      // Fallback for older browsers
       try {
         const ta = document.createElement('textarea');
         ta.value = text;

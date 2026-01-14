@@ -24,6 +24,12 @@ const orgRoutes = require('./routes/org');   // org dashboard/settings/users etc
 const userRoutes = require('./routes/user'); // user O365 login + user home
 require('dotenv').config();
 const isProd = String(process.env.PRODUCTION || '').toLowerCase() === 'true';
+const wantsHttpsLocal =
+  !isProd &&
+  (
+    String(process.env.LOCAL_HTTPS || '').toLowerCase() === 'true' ||
+    String(process.env.BASE_URL || '').toLowerCase().startsWith('https://')
+  );
 
 
 const app = express();
@@ -233,12 +239,7 @@ const PORT = Number(process.env.PORT) || 3000;
 // Your variable: PRODUCTION=TRUE in Railway, FALSE locally
 
 // Local: if BASE_URL starts with https OR you explicitly set LOCAL_HTTPS=true
-const wantsHttpsLocal =
-  !isProd &&
-  (
-    String(process.env.LOCAL_HTTPS || '').toLowerCase() === 'true' ||
-    String(process.env.BASE_URL || '').toLowerCase().startsWith('https://')
-  );
+
 
 if (wantsHttpsLocal) {
   const keyPath  = process.env.SSL_KEY_PATH  || path.join(__dirname, 'certs', 'test.key');

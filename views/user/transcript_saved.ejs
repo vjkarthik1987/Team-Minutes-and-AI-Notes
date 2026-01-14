@@ -1,36 +1,259 @@
 <% layout('layout') %>
 
-<h1>Saved Transcript</h1>
+<%
+  const status = doc.ai?.status || 'none';
+  const hasSummary = (status === 'done' && doc.ai?.summary);
+  const isQueued = status === 'queued';
+  const isError  = status === 'error';
+%>
+<%
+  function fmtRange(startIso, endIso) {
+    const s = startIso ? new Date(startIso) : null;
+    const e = endIso ? new Date(endIso) : null;
 
-<p>
-  <strong>Org:</strong> <%= org.name %><br/>
-  <strong>Subject:</strong> <%= doc.subject || '(no subject)' %><br/>
-  <strong>Time:</strong> <%= doc.startDateTime || '' %> → <%= doc.endDateTime || '' %>
-</p>
+    if (!s || isNaN(s.getTime())) return '';
 
-<hr style="margin:18px 0;" />
+    const dateFmt = new Intl.DateTimeFormat('en-IN', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
 
-<% if (doc.ai?.status === 'done' && doc.ai?.summary) { %>
-  <p>
-    ✅ AI summary ready:
-    <a href="/user/transcript/saved/<%= doc._id %>/summary" target="_blank" rel="noopener">Open AI Summary</a>
-  </p>
-<% } else if (doc.ai?.status === 'queued') { %>
-  <p>⏳ AI summary is being generated… refresh in a few seconds.</p>
-<% } else if (doc.ai?.status === 'error') { %>
-  <p style="color:#b00020;">AI summary failed: <%= doc.ai.error %></p>
-<% } else { %>
-  <p>AI summary not created yet.</p>
-<% } %>
+    const timeFmt = new Intl.DateTimeFormat('en-IN', {
+      hour: 'numeric',
+      minute: '2-digit'
+    });
 
-<hr style="margin:18px 0;" />
+    const dateStr = dateFmt.format(s);
+    const startStr = timeFmt.format(s);
 
-<h3>Transcript (plain text)</h3>
-<p>
-  <a href="#" onclick="copyTranscript(); return false;">📋 Copy Transcript</a>
-</p>
+    if (!e || isNaN(e.getTime())) {
+      return `${dateStr} • ${startStr}`;
+    }
 
-<pre style="white-space:pre-wrap; padding:12px; border:1px solid #ddd; border-radius:8px;"><%= doc.text %></pre>
+    const endStr = timeFmt.format(e);
+
+    const durMin = Math.max(0, Math.round((e.getTime() - s.getTime()) / 60000));
+    const durStr =
+      durMin >= 60
+        ? `${Math.floor(durMin / 60)}h ${durMin % 60}m`
+        : `${durMin}m`;
+
+    return `${dateStr} • ${startStr} – ${endStr} (${durStr})`;
+  }
+
+  const prettyTime = fmtRange(doc.startDateTime, doc.endDateTime);
+%>
+
+
+<!-- Top actions -->
+<div class="page-head">
+  <div class="page-head__left">
+    <a class="btn btn-ghost" href="/user/calendar">← Back to calendar</a>
+  </div>
+
+  <div class="page-head__right">
+    <% if (hasSummary) { %>
+      <a class="btn btn-primary" href="/user/transcript/saved/<%= doc._id %>/summary" rel="noopener">
+        Open AI summary →
+      </a>
+    <% } %>
+  </div>
+</div>
+
+<div class="card">
+  <div class="title-row">
+    <div>
+      <div class="kicker">Saved transcript</div>
+      <h1 class="title"><%= doc.subject || '(no subject)' %></h1>
+      <div class="meta">
+        <span class="meta-item"><strong>Org:</strong> <%= org.name %></span>
+        <span class="meta-dot">•</span>
+        <% if (prettyTime) { %>
+          <span class="meta-item"><strong>When:</strong> <%= prettyTime %></span>
+        <% } %>
+        
+      </div>
+    </div>
+
+    <div class="status">
+      <% if (hasSummary) { %>
+        <span class="pill ok">✅ Summary ready</span>
+      <% } else if (isQueued) { %>
+        <span class="pill wait">
+          <span class="dot-spin" aria-hidden="true"></span>
+          Generating summary…
+        </span>
+      <% } else if (isError) { %>
+        <span class="pill err">⚠️ Summary failed</span>
+      <% } else { %>
+        <span class="pill">⏺ Summary not started</span>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (isError) { %>
+    <div class="alert">
+      <strong>AI error:</strong> <%= doc.ai?.error || 'Unknown error' %>
+    </div>
+  <% } else if (isQueued) { %>
+    <div class="hint">
+      Tip: if this page is open while the redirect finishes, refresh once after ~10 seconds.
+    </div>
+  <% } %>
+</div>
+
+<!-- Transcript -->
+<div class="card">
+  <div class="card-head">
+    <div>
+      <h2 class="h2">Transcript</h2>
+      <div class="muted">Plain text (speaker attribution depends on transcript format).</div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-ghost" id="copyBtn" onclick="copyTranscript()">
+        <span class="btn-text">Copy</span>
+        <span class="btn-spinner" aria-hidden="true"></span>
+      </button>
+
+      <a class="btn btn-ghost" href="/user/transcript/saved/<%= doc._id %>/summary" rel="noopener"
+         style="<%= hasSummary ? '' : 'display:none;' %>">
+        Summary
+      </a>
+    </div>
+  </div>
+
+  <pre class="transcript-pre"><%= doc.text %></pre>
+</div>
+
+<style>
+  /* Page layout helpers (safe even with minimal.css) */
+  .page-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin: 6px 0 14px;
+  }
+  .page-head__left, .page-head__right{ display:flex; gap:10px; align-items:center; }
+
+  .kicker{
+    font-size: 12px;
+    color: var(--muted, #6b7280);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    margin-bottom: 6px;
+  }
+
+  .title-row{
+    display:flex;
+    justify-content:space-between;
+    gap:14px;
+    align-items:flex-start;
+  }
+
+  .title{
+    margin: 0;
+    font-size: 28px;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+
+  .meta{
+    margin-top: 10px;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:8px;
+    color: var(--muted, #6b7280);
+    font-size: 13px;
+  }
+  .meta strong{ color: var(--text, #111827); font-weight: 600; }
+  .meta-dot{ opacity: .55; }
+
+  .status{ padding-top: 4px; }
+
+  .alert{
+    margin-top: 14px;
+    padding: 12px 12px;
+    border-radius: 10px;
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #7f1d1d;
+    font-size: 13px;
+  }
+  .hint{
+    margin-top: 14px;
+    padding: 12px 12px;
+    border-radius: 10px;
+    border: 1px solid #fed7aa;
+    background: #fff7ed;
+    color: #7c2d12;
+    font-size: 13px;
+  }
+
+  .card-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom: 10px;
+  }
+  .h2{
+    margin: 0;
+    font-size: 16px;
+    letter-spacing: -0.01em;
+  }
+  .actions{
+    display:flex;
+    gap:10px;
+    align-items:center;
+  }
+
+  .transcript-pre{
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding: 14px;
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 12px;
+    background: #fafafa;
+    line-height: 1.6;
+    font-size: 13.5px;
+  }
+
+  /* Tiny premium copy loading (no JS libs) */
+  #copyBtn{
+    position:relative;
+    overflow:hidden;
+    min-width: 86px;
+    justify-content:center;
+  }
+  #copyBtn .btn-spinner{
+    position:absolute;
+    width:16px;height:16px;
+    border-radius:50%;
+    border:2px solid rgba(249,115,22,.35);
+    border-top-color: var(--accent, #f97316);
+    opacity:0;
+    animation: spin .9s linear infinite;
+  }
+  #copyBtn.is-loading .btn-text{ opacity:0; }
+  #copyBtn.is-loading .btn-spinner{ opacity:1; }
+
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+
+  /* Responsive tweaks */
+  @media (max-width: 720px){
+    .title-row{ flex-direction: column; }
+    .card-head{ flex-direction: column; align-items:flex-start; }
+    .actions{ width:100%; }
+    .actions .btn{ flex: 0 0 auto; }
+  }
+</style>
+
 <script>
   async function copyToClipboard(text) {
     try {
@@ -55,8 +278,13 @@
   }
 
   async function copyTranscript() {
+    const btn = document.getElementById('copyBtn');
+    if (btn) btn.classList.add('is-loading');
+
     const text = `<%- JSON.stringify(String(doc.text || '')) %>`;
     const ok = await copyToClipboard(text);
+
+    if (btn) btn.classList.remove('is-loading');
 
     if (ok) alert('✅ Transcript copied to clipboard');
     else alert('⚠️ Copy failed. Try selecting and copying manually.');

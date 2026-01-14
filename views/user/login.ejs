@@ -1,14 +1,55 @@
 <% layout('layout') %>
 
-<h1>Join your organization</h1>
-<p>Enter your org slug, then sign in with Office 365.</p>
+<section class="auth">
+  <div class="auth-card">
+    <div class="auth-badge">Minutes</div>
 
-<form method="POST" action="/user/login" style="max-width:420px;">
-  <div style="margin:12px 0;">
-    <label><strong>Org slug</strong></label><br/>
-    <input name="slug" type="text" required placeholder="suntec"
-           style="width:100%;padding:10px;" />
+    <h1 class="auth-title">
+      Login to your workspace
+    </h1>
+
+    <p class="auth-sub">
+      Enter your org slug, then continue with Office 365. No password here — your Microsoft sign-in does the work.
+    </p>
+
+    <form method="POST" action="/user/login" class="auth-form">
+
+      <div class="auth-field">
+        <input
+          id="slug"
+          name="slug"
+          type="text"
+          required
+          autocomplete="organization"
+          placeholder="suntec"
+          class="auth-input"
+        />
+      </div>
+
+      <button type="submit" class="btn btn-primary auth-cta">
+        <span class="btn-text">Continue</span>
+        <span class="btn-arrow" aria-hidden="true">→</span>
+        <span class="btn-spinner" aria-hidden="true"></span>
+      </button>
+      
+
+      <p class="auth-hint">
+        Tip: your slug is usually your company name (lowercase). Example: <code>suntec</code>
+      </p>
+    </form>
   </div>
 
-  <button type="submit" style="padding:10px 14px;">Continue</button>
-</form>
+  <aside class="auth-side">
+    <div class="auth-side-card">
+      <h3 class="auth-side-title">What you’ll get</h3>
+      <ul class="auth-side-list">
+        <li><span class="dot"></span>Meetings with transcripts (fast cache)</li>
+        <li><span class="dot"></span>One-click “Ensure transcript” + AI summary</li>
+        <li><span class="dot"></span>Private by default (org isolation)</li>
+      </ul>
+      <div class="auth-side-foot">
+        <span class="pill wait">And it</span>
+      </div>
+    </div>
+  </aside>
+</section>
