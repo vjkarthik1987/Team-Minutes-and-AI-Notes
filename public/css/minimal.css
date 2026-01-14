@@ -552,3 +552,50 @@ a:hover { text-decoration: underline; }
     text-align: center;
   }
 }
+
+/* --- Fix mobile "button not clickable" (overlay / stacking) --- */
+.auth {
+  position: relative;
+}
+
+.auth-card {
+  position: relative;
+  z-index: 5;              /* keep it above side/gradients */
+}
+
+/* if you have any fancy background layer/pseudo element, it must not capture taps */
+.auth::before,
+.auth::after,
+.auth-side::before,
+.auth-side::after,
+.auth-side-card::before,
+.auth-side-card::after {
+  pointer-events: none;
+}
+
+/* Mobile: stack vertically and avoid side panel overlaying the card */
+@media (max-width: 820px) {
+  .auth {
+    display: block;        /* instead of flex */
+  }
+
+  .auth-side {
+    display: none;         /* simplest: hide side panel on mobile */
+  }
+
+  /* if you want to keep it, use this instead of display:none:
+  .auth-side { margin-top: 14px; }
+  */
+}
+
+.auth-cta,
+.auth-cta * {
+  pointer-events: none;     /* children should not capture taps */
+}
+
+.auth-cta {
+  pointer-events: auto;     /* but the button itself must */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
