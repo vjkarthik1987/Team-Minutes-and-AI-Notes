@@ -5,6 +5,7 @@ const fetch = require('node-fetch');
 
 const Org = require('../models/Org');
 const EventCache = require('../models/EventCache');
+const UserSyncState = require('../models/UserSyncState');
 
 const ensureUserFreshToken = require('../middleware/ensureUserFreshToken');
 const { getCalendarRange } = require('../utils/graph');
@@ -76,6 +77,143 @@ function sameMailbox(a, b) {
   return A.split('@')[0] === B.split('@')[0];
 }
 
+function startOfDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function endOfDay(d) {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+function addDays(d, n) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+function clampDate(d) {
+  const x = new Date(d);
+  if (!Number.isFinite(x.getTime())) return null;
+  return x;
+}
+
+// Merge overlapping/adjacent ranges to avoid repeated Graph calls
+function mergeRanges(ranges) {
+  const clean = ranges
+    .map(r => ({ start: clampDate(r.start), end: clampDate(r.end) }))
+    .filter(r => r.start && r.end && r.start <= r.end)
+    .sort((a, b) => a.start - b.start);
+
+  if (!clean.length) return [];
+
+  const out = [clean[0]];
+  for (let i = 1; i < clean.length; i++) {
+    const prev = out[out.length - 1];
+    const cur = clean[i];
+
+    // if overlapping or adjacent (within 1 minute), merge
+    if (cur.start.getTime() <= prev.end.getTime() + 60 * 1000) {
+      prev.end = new Date(Math.max(prev.end.getTime(), cur.end.getTime()));
+    } else {
+      out.push(cur);
+    }
+  }
+  return out;
+}
+
+async function upsertTranscriptEventsToCache({
+  accessToken,
+  orgId,
+  userEmail,
+  rangeStart,
+  rangeEnd,
+  annotateEventsWithTranscripts,
+  getCalendarRange,
+  maxChecks = 80,
+  concurrency = 4,
+}) {
+  // 1) Fetch events metadata
+  const list = await getCalendarRange(accessToken, {
+    startDateTime: rangeStart.toISOString(),
+    endDateTime: rangeEnd.toISOString(),
+    top: 75,
+    max: 300,
+  });
+
+  const events = Array.isArray(list) ? list : [];
+
+  // 2) Candidates: online meetings only
+  const candidates = events.filter(ev => !!(ev?.isOnlineMeeting || ev?.onlineMeeting || ev?.onlineMeetingUrl));
+
+  // 3) Annotate transcript existence (expensive)
+  const annotated = await annotateEventsWithTranscripts(accessToken, candidates, {
+    maxChecks,
+    concurrency,
+  });
+
+  const transcriptEvents = (annotated || []).filter(ev => ev._hasTranscript && ev._transcripts?.length);
+
+  // 4) Upsert into EventCache (only transcript events)
+  if (transcriptEvents.length) {
+    const bulk = EventCache.collection.initializeUnorderedBulkOp();
+    let ops = 0;
+
+    for (const ev of transcriptEvents) {
+      const emails = [];
+
+      const orgEmail = ev.organizer?.emailAddress?.address;
+      if (orgEmail) emails.push(String(orgEmail).toLowerCase().trim());
+
+      const atts = Array.isArray(ev.attendees) ? ev.attendees : [];
+      for (const a of atts) {
+        const em = a?.emailAddress?.address;
+        if (em) emails.push(String(em).toLowerCase().trim());
+      }
+
+      const uniqEmails = [...new Set(emails.filter(Boolean))];
+
+      bulk
+        .find({ orgId, userEmail, eventId: String(ev.id) })
+        .upsert()
+        .updateOne({
+          $set: {
+            orgId,
+            userEmail,
+            eventId: String(ev.id),
+
+            subject: ev.subject || '',
+            startDateTime: ev.start?.dateTime || '',
+            endDateTime: ev.end?.dateTime || '',
+            location: ev.location?.displayName || '',
+
+            organizerEmail: String(orgEmail || '').toLowerCase().trim(),
+            attendeeEmails: uniqEmails,
+
+            hasTranscript: true,
+            transcripts: (ev._transcripts || []).map(t => ({
+              meetingId: String(t.meetingId || ''),
+              transcriptId: String(t.id || ''),
+            })),
+
+            syncedAt: new Date(),
+          },
+          $setOnInsert: { createdAt: new Date() },
+        });
+
+      ops++;
+    }
+
+    if (ops > 0) await bulk.execute();
+  }
+
+  return { transcriptEventsCount: transcriptEvents.length };
+}
+
+
 // GET /user/login
 router.get('/login', (req, res) => {
   res.render('user/login', { title: 'User login' });
@@ -116,76 +254,448 @@ router.get('/home', requireUser, (req, res) => {
 });
 
 // GET /user/calendar (cached transcript-events for last N days, with optional refresh)
+// router.get('/calendar', requireUser, ensureUserFreshToken, async (req, res) => {
+//   let error = null;
+
+//   const tokens = res.locals.userTokens;
+//   const accessToken = (tokens?.access_token || '').trim();
+
+//   const orgId = req.user.org?._id;
+//   const me = String(req.user.email || '').toLowerCase().trim();
+
+//   const PAST_DAYS = Math.max(1, Number(req.query.pastDays || 30));
+
+//   const CACHE_FRESH_MS = 6 * 60 * 60 * 1000; // 6 hours
+//   const forceRefresh = String(req.query.refresh || '') === '1';
+
+//   try {
+//     if (!accessToken) {
+//       error = 'No access token available. Please sign in again.';
+//       throw new Error(error);
+//     }
+
+//     const now = new Date();
+
+//     const pastStart = new Date(now);
+//     pastStart.setDate(now.getDate() - (PAST_DAYS - 1));
+//     pastStart.setHours(0, 0, 0, 0);
+
+//     const pastEnd = new Date(now);
+//     pastEnd.setHours(23, 59, 59, 999);
+
+//     // 1) Serve from cache if fresh
+//     const lastCached = await EventCache.findOne({ orgId, userEmail: me })
+//       .sort({ syncedAt: -1 })
+//       .select({ syncedAt: 1 })
+//       .lean();
+
+//     const isFresh =
+//       !!lastCached?.syncedAt &&
+//       (Date.now() - new Date(lastCached.syncedAt).getTime()) < CACHE_FRESH_MS;
+
+//     if (!forceRefresh && isFresh) {
+//       const cached = await EventCache.find({
+//         orgId,
+//         userEmail: me,
+//         hasTranscript: true,
+//       })
+//         .sort({ startDateTime: -1 })
+//         .limit(400)
+//         .lean();
+
+//       const prevEvents = cached.filter(e => {
+//         const t = Date.parse(e.startDateTime || '');
+//         return Number.isFinite(t) && t >= pastStart.getTime() && t <= pastEnd.getTime();
+//       });
+
+//       return res.render('user/calendar', {
+//         title: 'Meetings with transcripts',
+//         user: req.user,
+//         org: req.user.org,
+//         activeNav: 'calendar',
+//         prevEvents,
+//         error: null,
+//         cachedOnly: true,
+//         cacheFresh: true,
+//         pastDays: PAST_DAYS,
+//         forceRefresh: false,
+//         lastSyncedAt: lastCached?.syncedAt || null,
+//       });
+//     }
+
+//     // 2) Refresh from Graph
+//     const pastList = await getCalendarRange(accessToken, {
+//       startDateTime: pastStart.toISOString(),
+//       endDateTime: pastEnd.toISOString(),
+//       top: 75,
+//       max: 300,
+//     });
+
+//     const events = Array.isArray(pastList) ? pastList : [];
+
+//     const candidates = events.filter(ev => !!(ev?.isOnlineMeeting || ev?.onlineMeeting || ev?.onlineMeetingUrl));
+
+//     // ✅ check newest meetings first (so maxChecks covers latest days)
+//     const candidatesSorted = candidates
+//       .slice()
+//       .sort((a, b) => Date.parse(b?.start?.dateTime || '') - Date.parse(a?.start?.dateTime || ''));
+
+//     const annotated = await annotateEventsWithTranscripts(accessToken, candidatesSorted, {
+//       maxChecks: 300,
+//       concurrency: 4,
+//     });
+
+
+//     const transcriptEvents = (annotated || []).filter(ev => ev._hasTranscript && ev._transcripts?.length);
+
+//     if (transcriptEvents.length) {
+//       const bulk = EventCache.collection.initializeUnorderedBulkOp();
+//       let ops = 0;
+
+//       for (const ev of transcriptEvents) {
+//         const emails = [];
+
+//         const orgEmail = ev.organizer?.emailAddress?.address;
+//         if (orgEmail) emails.push(String(orgEmail).toLowerCase().trim());
+
+//         const atts = Array.isArray(ev.attendees) ? ev.attendees : [];
+//         for (const a of atts) {
+//           const em = a?.emailAddress?.address;
+//           if (em) emails.push(String(em).toLowerCase().trim());
+//         }
+
+//         const uniqEmails = [...new Set(emails.filter(Boolean))];
+
+//         bulk
+//           .find({ orgId, userEmail: me, eventId: String(ev.id) })
+//           .upsert()
+//           .updateOne({
+//             $set: {
+//               orgId,
+//               userEmail: me,
+//               eventId: String(ev.id),
+
+//               subject: ev.subject || '',
+//               startDateTime: ev.start?.dateTime || '',
+//               endDateTime: ev.end?.dateTime || '',
+//               location: ev.location?.displayName || '',
+
+//               organizerEmail: String(orgEmail || '').toLowerCase().trim(),
+//               attendeeEmails: uniqEmails,
+
+//               hasTranscript: true,
+//               transcripts: (ev._transcripts || []).map(t => ({
+//                 meetingId: String(t.meetingId || ''),
+//                 transcriptId: String(t.id || ''),
+//               })),
+
+//               syncedAt: new Date(),
+//             },
+//             $setOnInsert: { createdAt: new Date() },
+//           });
+
+//         ops++;
+//       }
+
+//       if (ops > 0) await bulk.execute();
+//     }
+
+//     const prevEvents = transcriptEvents
+//       .filter(ev => {
+//         const t = Date.parse(ev.start?.dateTime || '');
+//         return Number.isFinite(t) && t >= pastStart.getTime() && t <= pastEnd.getTime();
+//       })
+//       .sort((a, b) => Date.parse(b.start?.dateTime || '') - Date.parse(a.start?.dateTime || ''));
+
+//     const lastSyncedAt = new Date();
+
+//     return res.render('user/calendar', {
+//       title: 'Meetings with transcripts',
+//       user: req.user,
+//       org: req.user.org,
+//       activeNav: 'calendar',
+//       prevEvents,
+//       error: null,
+//       cachedOnly: true,
+//       cacheFresh: false,
+//       pastDays: PAST_DAYS,
+//       forceRefresh: true,
+//       lastSyncedAt,
+//     });
+//   } catch (e) {
+//     error = error || e.message || String(e);
+//   }
+
+//   return res.render('user/calendar', {
+//     title: 'Meetings with transcripts',
+//     user: req.user,
+//     org: req.user.org,
+//     activeNav: 'calendar',
+//     prevEvents: [],
+//     error,
+//     cachedOnly: true,
+//     cacheFresh: false,
+//     pastDays: Number(req.query.pastDays || 30),
+//     forceRefresh: String(req.query.refresh || '') === '1',
+//     lastSyncedAt: null,
+//   });
+// });
+// GET /user/calendar (incremental sync + backfill strategy)
+// router.get('/calendar', requireUser, ensureUserFreshToken, async (req, res) => {
+//   let error = null;
+
+//   const tokens = res.locals.userTokens;
+//   const accessToken = (tokens?.access_token || '').trim();
+
+//   const orgId = req.user.org?._id;
+//   const me = String(req.user.email || '').toLowerCase().trim();
+
+//   const PAST_DAYS = Math.max(1, Number(req.query.pastDays || 30));
+//   const forceRefresh = String(req.query.refresh || '') === '1';
+
+//   // Strategy knobs (tune later)
+//   const RECENT_DAYS = 10;              // always recheck these days
+//   const BACKFILL_DAYS = 90;            // how far back to sweep for forwarded invites
+//   const BACKFILL_EVERY_HOURS = 24;     // how often to do older sweep
+
+//   // For performance: transcript check caps per range
+//   const MAXCHECKS_RECENT = 120;
+//   const MAXCHECKS_OTHER = 80;
+//   const CONCURRENCY = 4;
+
+//   try {
+//     if (!accessToken) throw new Error('No access token available. Please sign in again.');
+
+//     // Requested window
+//     const now = new Date();
+//     const requestedStart = startOfDay(addDays(now, -(PAST_DAYS - 1)));
+//     const requestedEnd = endOfDay(now);
+
+//     // Load/create sync state
+//     let state = await UserSyncState.findOne({ orgId, userEmail: me });
+//     if (!state) state = await UserSyncState.create({ orgId, userEmail: me });
+
+//     const syncedFrom = state.syncedFrom ? startOfDay(state.syncedFrom) : null;
+//     const syncedTo = state.syncedTo ? endOfDay(state.syncedTo) : null;
+
+//     const ranges = [];
+
+//     // 1) If first run or forced refresh: we still don’t want full cost always.
+//     // We’ll sync the requested window, but in slices:
+//     if (!syncedFrom || !syncedTo) {
+//       ranges.push({ start: requestedStart, end: requestedEnd });
+//     } else {
+//       // 2) Extend-only sync (missing left/right)
+//       if (requestedStart < syncedFrom) {
+//         // missing-left
+//         ranges.push({ start: requestedStart, end: addDays(syncedFrom, 1) }); // +1 day overlap
+//       }
+//       if (requestedEnd > syncedTo) {
+//         // missing-right
+//         ranges.push({ start: addDays(syncedTo, -1), end: requestedEnd }); // -1 day overlap
+//       }
+
+//       // 3) Always recheck recent window (late transcripts + edits)
+//       const recentStart = startOfDay(addDays(now, -(RECENT_DAYS - 1)));
+//       ranges.push({ start: recentStart, end: requestedEnd });
+
+//       // 4) Backfill sweep (catches forwarded/retro invites) - only sometimes
+//       const lastBackfillAt = state.lastBackfillAt ? new Date(state.lastBackfillAt) : null;
+//       const backfillDue =
+//         forceRefresh ||
+//         !lastBackfillAt ||
+//         (Date.now() - lastBackfillAt.getTime()) > BACKFILL_EVERY_HOURS * 60 * 60 * 1000;
+
+//       if (backfillDue) {
+//         const backfillStart = startOfDay(addDays(now, -(BACKFILL_DAYS - 1)));
+//         const backfillEnd = endOfDay(addDays(now, -RECENT_DAYS)); // older portion only
+//         if (backfillStart < backfillEnd) {
+//           ranges.push({ start: backfillStart, end: backfillEnd });
+//         }
+//       }
+//     }
+
+//     // If user explicitly refreshes, also ensure recent recheck is included even on first sync
+//     if (forceRefresh) {
+//       const recentStart = startOfDay(addDays(now, -(RECENT_DAYS - 1)));
+//       ranges.push({ start: recentStart, end: requestedEnd });
+//     }
+
+//     const merged = mergeRanges(ranges);
+
+//     // Run sync ranges (Graph + annotate + upsert)
+//     for (const r of merged) {
+//       const isRecentish = r.end.getTime() >= startOfDay(addDays(now, -(RECENT_DAYS - 1))).getTime();
+
+//       await upsertTranscriptEventsToCache({
+//         accessToken,
+//         orgId,
+//         userEmail: me,
+//         rangeStart: r.start,
+//         rangeEnd: r.end,
+//         annotateEventsWithTranscripts,
+//         getCalendarRange,
+//         maxChecks: isRecentish ? MAXCHECKS_RECENT : MAXCHECKS_OTHER,
+//         concurrency: CONCURRENCY,
+//       });
+//     }
+
+//     // Update sync state coverage
+//     const newFrom = syncedFrom ? new Date(Math.min(syncedFrom.getTime(), requestedStart.getTime())) : requestedStart;
+//     const newTo = syncedTo ? new Date(Math.max(syncedTo.getTime(), requestedEnd.getTime())) : requestedEnd;
+
+//     const update = {
+//       syncedFrom: newFrom,
+//       syncedTo: newTo,
+//       lastSyncedAt: new Date(),
+//     };
+
+//     // If we included the backfill range, set lastBackfillAt
+//     const didBackfill = merged.some(r => r.start <= startOfDay(addDays(now, -(BACKFILL_DAYS - 1))));
+//     if (didBackfill) update.lastBackfillAt = new Date();
+
+//     await UserSyncState.updateOne({ _id: state._id }, { $set: update });
+
+//     // Serve from cache (within requested window)
+//     const cached = await EventCache.find({
+//       orgId,
+//       userEmail: me,
+//       hasTranscript: true,
+//     })
+//       .sort({ startDateTime: -1 })
+//       .limit(600)
+//       .lean();
+
+//     const prevEvents = cached.filter(e => {
+//       const t = Date.parse(e.startDateTime || '');
+//       return Number.isFinite(t) && t >= requestedStart.getTime() && t <= requestedEnd.getTime();
+//     });
+
+//     const freshState = await UserSyncState.findOne({ orgId, userEmail: me }).lean();
+
+//     return res.render('user/calendar', {
+//       title: 'Meetings with transcripts',
+//       user: req.user,
+//       org: req.user.org,
+//       activeNav: 'calendar',
+//       prevEvents,
+//       error: null,
+
+//       // UI helpers
+//       cachedOnly: true,
+//       cacheFresh: false,
+//       pastDays: PAST_DAYS,
+//       forceRefresh,
+//       lastSyncedAt: freshState?.lastSyncedAt || null,
+//       syncedFrom: freshState?.syncedFrom || null,
+//       syncedTo: freshState?.syncedTo || null,
+//       lastBackfillAt: freshState?.lastBackfillAt || null,
+//     });
+//   } catch (e) {
+//     error = e.message || String(e);
+//   }
+
+//   return res.render('user/calendar', {
+//     title: 'Meetings with transcripts',
+//     user: req.user,
+//     org: req.user.org,
+//     activeNav: 'calendar',
+//     prevEvents: [],
+//     error,
+//     cachedOnly: true,
+//     cacheFresh: false,
+//     pastDays: Number(req.query.pastDays || 30),
+//     forceRefresh: String(req.query.refresh || '') === '1',
+//     lastSyncedAt: null,
+//     syncedFrom: null,
+//     syncedTo: null,
+//     lastBackfillAt: null,
+//   });
+// });
+// GET /user/calendar
+// ✅ Default: instant load from EventCache only
+// ✅ Only if ?refresh=1 => call Graph + update cache
 router.get('/calendar', requireUser, ensureUserFreshToken, async (req, res) => {
   let error = null;
-
-  const tokens = res.locals.userTokens;
-  const accessToken = (tokens?.access_token || '').trim();
 
   const orgId = req.user.org?._id;
   const me = String(req.user.email || '').toLowerCase().trim();
 
   const PAST_DAYS = Math.max(1, Number(req.query.pastDays || 30));
+  const doRefresh = String(req.query.refresh || '') === '1';
 
-  const CACHE_FRESH_MS = 6 * 60 * 60 * 1000; // 6 hours
-  const forceRefresh = String(req.query.refresh || '') === '1';
+  // tokens only needed when we refresh
+  const tokens = res.locals.userTokens;
+  const accessToken = (tokens?.access_token || '').trim();
+
+  // window boundaries
+  const now = new Date();
+  const pastStart = new Date(now);
+  pastStart.setDate(now.getDate() - (PAST_DAYS - 1));
+  pastStart.setHours(0, 0, 0, 0);
+
+  const pastEnd = new Date(now);
+  pastEnd.setHours(23, 59, 59, 999);
 
   try {
-    if (!accessToken) {
-      error = 'No access token available. Please sign in again.';
-      throw new Error(error);
-    }
+    // --------------------------
+    // 0) ALWAYS read cache first
+    // --------------------------
+    const cachedAll = await EventCache.find({
+      orgId,
+      userEmail: me,
+      hasTranscript: true,
+    })
+      .sort({ startDateTime: -1 })
+      .limit(500)
+      .lean();
 
-    const now = new Date();
+    const prevEventsFromCache = cachedAll.filter(e => {
+      const t = Date.parse(e.startDateTime || '');
+      return Number.isFinite(t) && t >= pastStart.getTime() && t <= pastEnd.getTime();
+    });
 
-    const pastStart = new Date(now);
-    pastStart.setDate(now.getDate() - (PAST_DAYS - 1));
-    pastStart.setHours(0, 0, 0, 0);
-
-    const pastEnd = new Date(now);
-    pastEnd.setHours(23, 59, 59, 999);
-
-    // 1) Serve from cache if fresh
     const lastCached = await EventCache.findOne({ orgId, userEmail: me })
       .sort({ syncedAt: -1 })
       .select({ syncedAt: 1 })
       .lean();
 
-    const isFresh =
-      !!lastCached?.syncedAt &&
-      (Date.now() - new Date(lastCached.syncedAt).getTime()) < CACHE_FRESH_MS;
-
-    if (!forceRefresh && isFresh) {
-      const cached = await EventCache.find({
-        orgId,
-        userEmail: me,
-        hasTranscript: true,
-      })
-        .sort({ startDateTime: -1 })
-        .limit(400)
-        .lean();
-
-      const prevEvents = cached.filter(e => {
-        const t = Date.parse(e.startDateTime || '');
-        return Number.isFinite(t) && t >= pastStart.getTime() && t <= pastEnd.getTime();
-      });
-
+    // ---------------------------------------------------------
+    // 1) If NOT refresh => render immediately (instant open)
+    // ---------------------------------------------------------
+    if (!doRefresh) {
       return res.render('user/calendar', {
         title: 'Meetings with transcripts',
         user: req.user,
         org: req.user.org,
         activeNav: 'calendar',
-        prevEvents,
+        prevEvents: prevEventsFromCache,
         error: null,
-        cachedOnly: true,
-        cacheFresh: true,
         pastDays: PAST_DAYS,
-        forceRefresh: false,
         lastSyncedAt: lastCached?.syncedAt || null,
+        isRefreshing: false, // UI hint
       });
     }
 
-    // 2) Refresh from Graph
+    // ---------------------------------------------------------
+    // 2) Refresh requested => call Graph + update cache
+    // ---------------------------------------------------------
+    if (!accessToken) {
+      error = 'No access token available. Please sign in again.';
+      return res.render('user/calendar', {
+        title: 'Meetings with transcripts',
+        user: req.user,
+        org: req.user.org,
+        activeNav: 'calendar',
+        prevEvents: prevEventsFromCache,
+        error,
+        pastDays: PAST_DAYS,
+        lastSyncedAt: lastCached?.syncedAt || null,
+        isRefreshing: false,
+      });
+    }
+
+    // Fetch events (metadata)
     const pastList = await getCalendarRange(accessToken, {
       startDateTime: pastStart.toISOString(),
       endDateTime: pastEnd.toISOString(),
@@ -195,21 +705,18 @@ router.get('/calendar', requireUser, ensureUserFreshToken, async (req, res) => {
 
     const events = Array.isArray(pastList) ? pastList : [];
 
+    // Only online candidates
     const candidates = events.filter(ev => !!(ev?.isOnlineMeeting || ev?.onlineMeeting || ev?.onlineMeetingUrl));
 
-    // ✅ check newest meetings first (so maxChecks covers latest days)
-    const candidatesSorted = candidates
-      .slice()
-      .sort((a, b) => Date.parse(b?.start?.dateTime || '') - Date.parse(a?.start?.dateTime || ''));
-
-    const annotated = await annotateEventsWithTranscripts(accessToken, candidatesSorted, {
-      maxChecks: 300,
+    // Check transcript existence only for candidates
+    const annotated = await annotateEventsWithTranscripts(accessToken, candidates, {
+      maxChecks: 60,
       concurrency: 4,
     });
 
-
     const transcriptEvents = (annotated || []).filter(ev => ev._hasTranscript && ev._transcripts?.length);
 
+    // Bulk upsert cache
     if (transcriptEvents.length) {
       const bulk = EventCache.collection.initializeUnorderedBulkOp();
       let ops = 0;
@@ -228,33 +735,30 @@ router.get('/calendar', requireUser, ensureUserFreshToken, async (req, res) => {
 
         const uniqEmails = [...new Set(emails.filter(Boolean))];
 
-        bulk
-          .find({ orgId, userEmail: me, eventId: String(ev.id) })
-          .upsert()
-          .updateOne({
-            $set: {
-              orgId,
-              userEmail: me,
-              eventId: String(ev.id),
+        bulk.find({ orgId, userEmail: me, eventId: String(ev.id) }).upsert().updateOne({
+          $set: {
+            orgId,
+            userEmail: me,
+            eventId: String(ev.id),
 
-              subject: ev.subject || '',
-              startDateTime: ev.start?.dateTime || '',
-              endDateTime: ev.end?.dateTime || '',
-              location: ev.location?.displayName || '',
+            subject: ev.subject || '',
+            startDateTime: ev.start?.dateTime || '',
+            endDateTime: ev.end?.dateTime || '',
+            location: ev.location?.displayName || '',
 
-              organizerEmail: String(orgEmail || '').toLowerCase().trim(),
-              attendeeEmails: uniqEmails,
+            organizerEmail: String(orgEmail || '').toLowerCase().trim(),
+            attendeeEmails: uniqEmails,
 
-              hasTranscript: true,
-              transcripts: (ev._transcripts || []).map(t => ({
-                meetingId: String(t.meetingId || ''),
-                transcriptId: String(t.id || ''),
-              })),
+            hasTranscript: true,
+            transcripts: (ev._transcripts || []).map(t => ({
+              meetingId: String(t.meetingId || ''),
+              transcriptId: String(t.id || ''),
+            })),
 
-              syncedAt: new Date(),
-            },
-            $setOnInsert: { createdAt: new Date() },
-          });
+            syncedAt: new Date(),
+          },
+          $setOnInsert: { createdAt: new Date() },
+        });
 
         ops++;
       }
@@ -262,46 +766,47 @@ router.get('/calendar', requireUser, ensureUserFreshToken, async (req, res) => {
       if (ops > 0) await bulk.execute();
     }
 
-    const prevEvents = transcriptEvents
-      .filter(ev => {
-        const t = Date.parse(ev.start?.dateTime || '');
-        return Number.isFinite(t) && t >= pastStart.getTime() && t <= pastEnd.getTime();
-      })
-      .sort((a, b) => Date.parse(b.start?.dateTime || '') - Date.parse(a.start?.dateTime || ''));
+    // ✅ After refresh, redirect to cache-only view (fast)
+    return res.redirect(`/user/calendar?pastDays=${encodeURIComponent(PAST_DAYS)}`);
+  } catch (e) {
+    error = e.message || String(e);
+    // even on error, still show cached results
+    const cachedAll = await EventCache.find({
+      orgId,
+      userEmail: me,
+      hasTranscript: true,
+    })
+      .sort({ startDateTime: -1 })
+      .limit(500)
+      .lean();
 
-    const lastSyncedAt = new Date();
+    const prevEventsFromCache = cachedAll.filter(e => {
+      const t = Date.parse(e.startDateTime || '');
+      return Number.isFinite(t) && t >= pastStart.getTime() && t <= pastEnd.getTime();
+    });
+
+    const lastCached = await EventCache.findOne({ orgId, userEmail: me })
+      .sort({ syncedAt: -1 })
+      .select({ syncedAt: 1 })
+      .lean();
 
     return res.render('user/calendar', {
       title: 'Meetings with transcripts',
       user: req.user,
       org: req.user.org,
       activeNav: 'calendar',
-      prevEvents,
-      error: null,
-      cachedOnly: true,
-      cacheFresh: false,
+      prevEvents: prevEventsFromCache,
+      error,
       pastDays: PAST_DAYS,
-      forceRefresh: true,
-      lastSyncedAt,
+      lastSyncedAt: lastCached?.syncedAt || null,
+      isRefreshing: false,
+      syncedFrom: null,
+      syncedTo: null,
+      lastBackfillAt: null,
     });
-  } catch (e) {
-    error = error || e.message || String(e);
   }
-
-  return res.render('user/calendar', {
-    title: 'Meetings with transcripts',
-    user: req.user,
-    org: req.user.org,
-    activeNav: 'calendar',
-    prevEvents: [],
-    error,
-    cachedOnly: true,
-    cacheFresh: false,
-    pastDays: Number(req.query.pastDays || 30),
-    forceRefresh: String(req.query.refresh || '') === '1',
-    lastSyncedAt: null,
-  });
 });
+
 
 router.get('/debug/transcript/:eventId', requireUser, ensureUserFreshToken, async (req, res) => {
   const tokens = res.locals.userTokens;

@@ -34,7 +34,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // -------------------- DB --------------------
 (async function connectDB() {
-  const MONGO_URL = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/minutes';
+  let MONGO_URL;
+  if (process.env.PRODUCTION){
+    MONGO_URL = process.env.MONGO_URI;
+  }
+  else {
+    MONGO_URL='mongodb://127.0.0.1:27017/minutes'
+  }
   await mongoose.connect(MONGO_URL);
   console.log('MongoDB connected');
 })().catch((err) => {

@@ -42,18 +42,33 @@ function pickTranscript(ev) {
   const _lastSyncedAt = (typeof lastSyncedAt !== 'undefined') ? lastSyncedAt : null;
 %>
 
-<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:8px 0 14px;">
-  <div class="muted">
-    Showing last <strong><%= _pastDays %></strong> days
-    <% if (_lastSyncedAt) { %>
-      • Last synced: <%= new Date(_lastSyncedAt).toLocaleString() %>
+<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin: 8px 0 16px;">
+  <div style="font-size:13px; opacity:.8;">
+    <% if (lastSyncedAt) { %>
+      Last synced: <%= new Date(lastSyncedAt).toLocaleString() %>
+    <% } else { %>
+      Not synced yet (click Refresh)
     <% } %>
   </div>
 
   <div style="display:flex; gap:10px; align-items:center;">
-    <a class="btn" href="/user/calendar?pastDays=<%= _pastDays %>&refresh=1">Refresh</a>
+    <a
+      href="/user/calendar?pastDays=<%= encodeURIComponent(pastDays || 30) %>&refresh=1"
+      style="padding:8px 12px; border:1px solid #ddd; border-radius:10px; text-decoration:none;"
+    >
+      Refresh
+    </a>
+
+    <a href="/user/home" style="font-size:13px;">Back</a>
   </div>
 </div>
+
+<% if (error) { %>
+  <div style="padding:10px 12px; border:1px solid #fca5a5; background:#fef2f2; border-radius:10px; margin-bottom:14px;">
+    <strong>Error:</strong> <%= error %>
+  </div>
+<% } %>
+
 
 <p><a href="/user/home">← Back to home</a></p>
 

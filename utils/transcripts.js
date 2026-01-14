@@ -270,19 +270,28 @@
     const working = events.map(ev => ({ ...ev }));
 
     // Candidates: must have join URL
+    // const candidates = working
+    //   .filter(ev => getJoinUrlFromEvent(ev))
+    //   // ✅ newest first so maxChecks covers latest meetings
+    //   .sort((a, b) => {
+    //     const ta = Date.parse(a?.start?.dateTime || a?.startDateTime || '');
+    //     const tb = Date.parse(b?.start?.dateTime || b?.startDateTime || '');
+    //     if (!Number.isFinite(tb) && !Number.isFinite(ta)) return 0;
+    //     if (!Number.isFinite(tb)) return -1;
+    //     if (!Number.isFinite(ta)) return 1;
+    //     return tb - ta; // desc
+    //   })
+    //   .slice(0, maxChecks);
+
     const candidates = working
       .filter(ev => getJoinUrlFromEvent(ev))
-      // ✅ newest first so maxChecks covers latest meetings
       .sort((a, b) => {
         const ta = Date.parse(a?.start?.dateTime || a?.startDateTime || '');
         const tb = Date.parse(b?.start?.dateTime || b?.startDateTime || '');
-        // put invalid dates at the end
-        if (!Number.isFinite(tb) && !Number.isFinite(ta)) return 0;
-        if (!Number.isFinite(tb)) return -1;
-        if (!Number.isFinite(ta)) return 1;
-        return tb - ta; // desc
+        return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0); // newest first
       })
       .slice(0, maxChecks);
+
 
 
     await runWithLimit(candidates, concurrency, async (ev) => {
