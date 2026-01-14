@@ -1,47 +1,210 @@
 <% layout('layout') %>
 
-<h1>User Home</h1>
+<style>
+  .page-wrap {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 18px 14px;
+  }
 
-<p>
-  <strong>Signed in as:</strong> <%= user.email %>
-</p>
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
 
-<hr style="margin:18px 0;" />
+  .title {
+    margin: 0 0 6px 0;
+    font-size: 28px;
+    letter-spacing: -0.2px;
+  }
 
-<h2>My workspace</h2>
+  .meta {
+    margin: 0;
+    opacity: 0.85;
+    line-height: 1.4;
+    font-size: 14px;
+  }
 
-<ul>
-  <li>
-    <a href="/user/calendar">My calendar</a>
-  </li>
-</ul>
+  .card {
+    margin-top: 18px;
+    border: 1px solid #e7e7e7;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.03);
+  }
 
-<hr style="margin:18px 0;" />
+  .card-hd {
+    padding: 14px 16px;
+    border-bottom: 1px solid #efefef;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    opacity: .7;
+  }
 
-<h2>Client (Org) Details</h2>
+  .card-bd {
+    padding: 16px;
+  }
 
-<ul style="line-height:1.8;">
-  <li><strong>Name:</strong> <%= org.name %></li>
-  <li><strong>Slug:</strong> <%= org.slug %></li>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+  }
 
-  <li>
-    <strong>Allowed domains:</strong>
-    <%= (org.allowedDomains && org.allowedDomains.length) ? org.allowedDomains.join(', ') : '-' %>
-  </li>
+  .item {
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid #eaeaea;
+    background: #fafafa;
+  }
 
-  <li><strong>Graph connected:</strong> <%= org.graph?.isConnected ? 'Yes' : 'No' %></li>
-  <li><strong>Graph health:</strong> <%= org.graph?.healthStatus || '-' %></li>
+  .item .label {
+    font-size: 12px;
+    opacity: .7;
+    margin-bottom: 4px;
+  }
 
-  <li><strong>Check transcripts:</strong> <%= org.features?.checkTranscripts ? 'Yes' : 'No' %></li>
-  <li><strong>Debug transcripts:</strong> <%= org.features?.debugTranscripts ? 'Yes' : 'No' %></li>
+  .item .value {
+    font-size: 14px;
+    font-weight: 500;
+  }
 
-  <li><strong>Meeting retention days:</strong> <%= org.retention?.meetingDays ?? '-' %></li>
-  <li><strong>Transcript retention days:</strong> <%= org.retention?.transcriptDays ?? '-' %></li>
-  <li><strong>Store raw transcript:</strong> <%= org.retention?.storeRawTranscript ? 'Yes' : 'No' %></li>
-</ul>
+  .actions {
+    margin-top: 14px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
 
-<hr style="margin:18px 0;" />
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+    color: #111;
+    font-size: 13px;
+    text-decoration: none;
+    cursor: pointer;
+  }
 
-<form method="POST" action="/user/logout">
-  <button type="submit" style="padding:10px 14px;">Logout</button>
-</form>
+  .btn:hover {
+    background: #f7f7f7;
+  }
+
+  .btn.primary {
+    border-color: #f97316;
+    background: #fff7ed;
+    color: #f97316;
+  }
+
+  .btn.primary:hover {
+    background: #ffedd5;
+  }
+
+  .footer-actions {
+    margin-top: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .small {
+    font-size: 12px;
+    opacity: .65;
+  }
+</style>
+
+<div class="page-wrap">
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1 class="title">Welcome</h1>
+      <p class="meta">
+        Signed in as <strong><%= user.email %></strong>
+      </p>
+    </div>
+  </div>
+
+  <!-- Workspace -->
+  <div class="card">
+    <div class="card-hd">Workspace</div>
+    <div class="card-bd">
+      <div class="actions">
+        <a class="btn primary" href="/user/calendar">📅 Calendar</a>
+        <span class="small">Your meetings with transcripts</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Org details -->
+  <div class="card">
+    <div class="card-hd">Organization</div>
+    <div class="card-bd">
+      <div class="grid">
+        <div class="item">
+          <div class="label">Name</div>
+          <div class="value"><%= org.name %></div>
+        </div>
+
+        <div class="item">
+          <div class="label">Slug</div>
+          <div class="value"><%= org.slug %></div>
+        </div>
+
+        <div class="item">
+          <div class="label">Allowed Domains</div>
+          <div class="value">
+            <%= (org.allowedDomains && org.allowedDomains.length)
+              ? org.allowedDomains.join(', ')
+              : '—' %>
+          </div>
+        </div>
+
+        <div class="item">
+          <div class="label">Graph Connected</div>
+          <div class="value"><%= org.graph?.isConnected ? 'Yes' : 'No' %></div>
+        </div>
+
+        <div class="item">
+          <div class="label">Graph Health</div>
+          <div class="value"><%= org.graph?.healthStatus || '—' %></div>
+        </div>
+
+        <div class="item">
+          <div class="label">Meeting Retention</div>
+          <div class="value"><%= org.retention?.meetingDays ?? '—' %> days</div>
+        </div>
+
+        <div class="item">
+          <div class="label">Transcript Retention</div>
+          <div class="value"><%= org.retention?.transcriptDays ?? '—' %> days</div>
+        </div>
+
+        <div class="item">
+          <div class="label">Store Raw Transcript</div>
+          <div class="value"><%= org.retention?.storeRawTranscript ? 'Yes' : 'No' %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer actions -->
+  <div class="footer-actions">
+    <span class="small">
+      Minutes · Minimal · Orange accent
+    </span>
+
+    <form method="POST" action="/user/logout">
+      <button class="btn" type="submit">Logout</button>
+    </form>
+  </div>
+</div>
