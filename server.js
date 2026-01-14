@@ -23,7 +23,7 @@ const authRoutes = require('./routes/auth'); // org local signup/login (you alre
 const orgRoutes = require('./routes/org');   // org dashboard/settings/users etc.
 const userRoutes = require('./routes/user'); // user O365 login + user home
 require('dotenv').config();
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = String(process.env.PRODUCTION || '').toLowerCase() === 'true';
 
 
 const app = express();
@@ -62,14 +62,9 @@ app.use(
     secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({
-      mongoUrl: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/minutes',
-      collectionName: 'sessions',
-      ttl: (Number(process.env.SESSION_TTL_DAYS) || 14) * 24 * 60 * 60, // seconds
-    }),
     cookie: {
       httpOnly: true,
-      secure: isProd,
+      secure: isProd || wantsHttpsLocal,   // ✅ secure cookies only in Railway
       sameSite: 'lax',
       maxAge: (Number(process.env.SESSION_TTL_DAYS) || 14) * 24 * 60 * 60 * 1000,
     },
@@ -234,7 +229,18 @@ app.post('/user/logout', (req, res, next) => {
 
 // -------------------- Start --------------------
 const PORT = Number(process.env.PORT) || 3000;
-if ((process.env.BASE_URL || '').startsWith('https://')) {
+
+// Your variable: PRODUCTION=TRUE in Railway, FALSE locally
+
+// Local: if BASE_URL starts with https OR you explicitly set LOCAL_HTTPS=true
+const wantsHttpsLocal =
+  !isProd &&
+  (
+    String(process.env.LOCAL_HTTPS || '').toLowerCase() === 'true' ||
+    String(process.env.BASE_URL || '').toLowerCase().startsWith('https://')
+  );
+
+if (wantsHttpsLocal) {
   const keyPath  = process.env.SSL_KEY_PATH  || path.join(__dirname, 'certs', 'test.key');
   const certPath = process.env.SSL_CERT_PATH || path.join(__dirname, 'certs', 'test.crt');
 
@@ -244,11 +250,14 @@ if ((process.env.BASE_URL || '').startsWith('https://')) {
   };
 
   https.createServer(httpsOptions, app).listen(PORT, () => {
-    console.log(`HTTPS server running on https://localhost:${PORT}`);
+    console.log(`HTTPS (local) server running on https://localhost:${PORT}`);
   });
 } else {
+  // Railway + normal local HTTP
   app.listen(PORT, () => {
-    console.log(`HTTP server running on http://localhost:${PORT}`);
+    console.log(`HTTP server running on port ${PORT}`);
   });
 }
+
+
 
