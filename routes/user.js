@@ -197,10 +197,16 @@ router.get('/calendar', requireUser, ensureUserFreshToken, async (req, res) => {
 
     const candidates = events.filter(ev => !!(ev?.isOnlineMeeting || ev?.onlineMeeting || ev?.onlineMeetingUrl));
 
-    const annotated = await annotateEventsWithTranscripts(accessToken, candidates, {
-      maxChecks: 60,
+    // ✅ check newest meetings first (so maxChecks covers latest days)
+    const candidatesSorted = candidates
+      .slice()
+      .sort((a, b) => Date.parse(b?.start?.dateTime || '') - Date.parse(a?.start?.dateTime || ''));
+
+    const annotated = await annotateEventsWithTranscripts(accessToken, candidatesSorted, {
+      maxChecks: 300,
       concurrency: 4,
     });
+
 
     const transcriptEvents = (annotated || []).filter(ev => ev._hasTranscript && ev._transcripts?.length);
 
