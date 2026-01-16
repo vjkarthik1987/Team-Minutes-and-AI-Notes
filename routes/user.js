@@ -245,6 +245,26 @@ function requireUser(req, res, next) {
   return res.redirect('/user/login');
 }
 
+function toIsoZ(graphDateTime) {
+  // graphDateTime can be:
+  // - string "2026-01-13T10:00:00.0000000" (no zone)
+  // - or object { dateTime, timeZone }
+  const dt = typeof graphDateTime === 'string'
+    ? graphDateTime
+    : (graphDateTime?.dateTime || '');
+
+  if (!dt) return '';
+
+  const s = String(dt).trim();
+
+  // already has timezone info
+  if (/[zZ]$/.test(s) || /[+\-]\d\d:\d\d$/.test(s)) return s;
+
+  // If you requested UTC via Prefer, Graph gives UTC "floating" time -> append Z
+  return `${s}Z`;
+}
+
+
 router.get('/home', requireUser, (req, res) => {
   res.render('user/home', {
     title: 'User Home',
@@ -742,8 +762,8 @@ router.get('/calendar', requireUser, ensureUserFreshToken, async (req, res) => {
             eventId: String(ev.id),
 
             subject: ev.subject || '',
-            startDateTime: ev.start?.dateTime || '',
-            endDateTime: ev.end?.dateTime || '',
+            startDateTime: toIsoZ(ev.start),
+            endDateTime: toIsoZ(ev.end),
             location: ev.location?.displayName || '',
 
             organizerEmail: String(orgEmail || '').toLowerCase().trim(),

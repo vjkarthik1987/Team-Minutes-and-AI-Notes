@@ -27,7 +27,7 @@ async function getCalendarRange(accessToken, { startDateTime, endDateTime, top =
     const res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        Prefer: 'outlook.timezone="Asia/Kolkata"',
+        Prefer: 'outlook.timezone="UTC"',
       },
     });
 

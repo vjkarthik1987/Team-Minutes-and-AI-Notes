@@ -201,11 +201,26 @@
     Recurring meeting fix helpers
     ------------------------------ */
 
-  function toMs(dt) {
-    if (!dt) return NaN;
-    const t = Date.parse(dt);
-    return Number.isFinite(t) ? t : NaN;
-  }
+    function toMs(dt) {
+      if (!dt) return NaN;
+    
+      let s = dt;
+    
+      // dt might be { dateTime, timeZone }
+      if (typeof dt === 'object' && dt?.dateTime) s = dt.dateTime;
+    
+      s = String(s).trim();
+      if (!s) return NaN;
+    
+      // If no timezone suffix, treat as UTC (prevents server-local interpretation)
+      if (!/[zZ]$/.test(s) && !/[+\-]\d\d:\d\d$/.test(s)) {
+        s = `${s}Z`;
+      }
+    
+      const t = Date.parse(s);
+      return Number.isFinite(t) ? t : NaN;
+    }
+    
 
   /**
    * Pick the transcript that best matches THIS calendar occurrence.
