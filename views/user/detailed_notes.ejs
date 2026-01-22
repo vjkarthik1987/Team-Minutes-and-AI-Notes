@@ -1,0 +1,295 @@
+<% layout('layout') %>
+
+<%
+  const _orgName = org?.name || 'Org';
+  const _subject = doc?.subject || 'Meeting notes';
+  const _start = String(doc?.startDateTime || '');
+  const _end = String(doc?.endDateTime || '');
+%>
+
+<style>
+  /* ---- Layout ---- */
+  .page-wrap{
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 18px 14px;
+  }
+
+  .topline{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:10px;
+  }
+
+  .back-link{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    font-size:13px;
+    color:#444;
+    text-decoration:none;
+    padding:8px 10px;
+    border-radius:10px;
+    border:1px solid #eee;
+    background:#fff;
+  }
+  .back-link:hover{ background:#fafafa; text-decoration:none; }
+
+  .status{
+    font-size:12px;
+    color:#666;
+    padding:6px 10px;
+    border-radius:999px;
+    border:1px solid #eee;
+    background:#fff;
+  }
+  .status.done{ border-color:#d7f0df; background:#f2fbf5; color:#166534; }
+  .status.wait{ border-color:#ffe7b8; background:#fff8e8; color:#92400e; }
+  .status.err{ border-color:#ffd0d0; background:#fff1f1; color:#991b1b; }
+
+  .doc-title{
+    margin:10px 0 6px 0;
+    font-size:30px;
+    font-weight:650;
+    letter-spacing:-0.45px;
+    line-height:1.12;
+  }
+
+  .doc-meta{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:8px;
+    margin:0 0 14px 0;
+    font-size:13px;
+    color:#6b7280;
+  }
+  .dot{ opacity:.45; }
+
+  .divider{
+    border:none;
+    border-top:1px solid #eee;
+    margin:18px 0;
+  }
+
+  /* ---- Buttons ---- */
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 12px;
+    border-radius:10px;
+    border:1px solid #eee;
+    background:#fff;
+    font-size:13px;
+    cursor:pointer;
+  }
+  .btn:hover{ background:#fafafa; }
+  .btn-ghost{ background:#fff; }
+
+  /* Copy micro-interaction */
+  #copyNotesBtn{ position:relative; overflow:hidden; min-width: 108px; justify-content:center; }
+  #copyNotesBtn .btn-spinner{
+    position:absolute;
+    width:16px;
+    height:16px;
+    border-radius:50%;
+    border:2px solid rgba(249,115,22,.35);
+    border-top-color:#f97316;
+    opacity:0;
+    animation: spin .9s linear infinite;
+  }
+  #copyNotesBtn.is-loading .btn-text{ opacity:0; }
+  #copyNotesBtn.is-loading .btn-spinner{ opacity:1; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* ---- Premium doc container ---- */
+  .doc-shell{
+    background:#fff;
+    border:1px solid #eee;
+    border-radius:16px;
+    box-shadow:0 6px 20px rgba(0,0,0,.04);
+    padding:22px 22px;
+  }
+
+  /* Tight, readable line length */
+  .doc{
+    max-width: 820px;
+    font-size:16px;
+    line-height:1.8;
+    color:#111827;
+  }
+
+  /* Headings */
+  .doc h2{
+    margin: 28px 0 12px;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+    font-weight: 750;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .doc h3{
+    margin: 22px 0 8px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    position: relative;
+    padding-left: 12px;
+  }
+
+  .doc h3::before{
+    content:"";
+    position:absolute;
+    left:0;
+    top:0.35em;
+    width:4px;
+    height:0.9em;
+    border-radius:999px;
+    background: rgba(249,115,22,.55);
+  }
+
+  /* Paragraph rhythm */
+  .doc p{
+    margin: 10px 0;
+    color:#111827;
+  }
+  .doc h2 + p,
+  .doc h3 + p{
+    margin-top: 6px;
+  }
+
+  .muted{ font-size:12px; color:#6b7280; }
+  .error{ color:#b91c1c; font-size:14px; margin-top:10px; }
+
+  /* Mobile polish */
+  @media (max-width: 640px){
+    .doc-shell{ padding: 16px 14px; }
+    .doc{ font-size:15px; }
+    .doc-title{ font-size:24px; }
+    .doc h2{ font-size:17px; }
+  }
+</style>
+
+<div class="page-wrap">
+  <div class="topline">
+    <a class="back-link" href="/user/transcript/saved/<%= doc._id %>" rel="noopener">← Back to Transcript</a>
+
+    <div style="display:flex; gap:10px; align-items:center;">
+      <% if (doc.ai?.detailedStatus === 'done') { %>
+        <button class="btn btn-ghost" id="copyNotesBtn" onclick="copyDetailedNotes()">
+          <span class="btn-text">📋 Copy notes</span>
+          <span class="btn-spinner" aria-hidden="true"></span>
+        </button>
+        <span class="status done">Ready</span>
+      <% } else if (doc.ai?.detailedStatus === 'queued') { %>
+        <span class="status wait">Generating…</span>
+      <% } else if (doc.ai?.detailedStatus === 'error') { %>
+        <span class="status err">Failed</span>
+      <% } else { %>
+        <span class="status">Not created</span>
+      <% } %>
+    </div>
+  </div>
+
+  <h1 class="doc-title"><%= _subject %></h1>
+
+  <p class="doc-meta">
+    <span><%= _orgName %></span>
+    <% if (_start || _end) { %>
+      <span class="dot">•</span>
+      <span><%= (_start && _end) ? (_start + ' → ' + _end) : (_start || _end) %></span>
+    <% } %>
+    <% if (doc.ai?.detailedModel) { %>
+      <span class="dot">•</span>
+      <span class="muted">Model: <%= doc.ai.detailedModel %></span>
+    <% } %>
+  </p>
+
+  <hr class="divider" />
+
+  <div class="doc-shell">
+    <div class="doc">
+      <% if (doc.ai?.detailedStatus === 'done' && doc.ai?.detailedNotes) { %>
+        <%
+          const raw = String(doc.ai.detailedNotes || '');
+          const lines = raw.split(/\r?\n/);
+
+          function esc(s) {
+            return String(s)
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+          }
+
+          for (let i = 0; i < lines.length; i++) {
+            const t = (lines[i] || '').trim();
+            if (!t) { continue; }
+
+            if (t.startsWith('## ')) { %>
+              <h2><strong><%= t.slice(3) %></strong></h2>
+            <% continue; }
+
+            if (t.startsWith('### ')) { %>
+              <h3><strong><%= t.slice(4) %></strong></h3>
+            <% continue; }
+
+            %><p><%= esc(t) %></p><%
+          }
+        %>
+      <% } else if (doc.ai?.detailedStatus === 'queued') { %>
+        <p>Generating detailed notes…</p>
+        <p class="muted">Refresh once after a few seconds.</p>
+      <% } else if (doc.ai?.detailedStatus === 'error') { %>
+        <p class="error"><strong>Detailed notes failed:</strong> <%= doc.ai.detailedError %></p>
+        <p class="muted">You can try again later by reopening this meeting.</p>
+      <% } else { %>
+        <p>No detailed notes yet.</p>
+        <p class="muted">Open the transcript once to trigger note generation.</p>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<script>
+  async function copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e2) {
+        return false;
+      }
+    }
+  }
+
+  async function copyDetailedNotes() {
+    const btn = document.getElementById('copyNotesBtn');
+    if (btn) btn.classList.add('is-loading');
+
+    const text = <%- JSON.stringify(String(doc.ai?.detailedNotes || '')) %>;
+    const ok = await copyToClipboard(text);
+
+    if (btn) btn.classList.remove('is-loading');
+
+    if (ok) alert('✅ Detailed notes copied to clipboard');
+    else alert('⚠️ Copy failed. Try selecting and copying manually.');
+  }
+</script>

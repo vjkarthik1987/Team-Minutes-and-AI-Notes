@@ -28,6 +28,12 @@ const TranscriptSchema = new mongoose.Schema(
       error: { type: String, default: '' },
       createdAt: { type: Date },
       updatedAt: { type: Date },
+      detailedStatus: { type: String, enum: ['none', 'queued', 'done', 'error'], default: 'none' },
+      detailedModel: { type: String, default: '' },
+      detailedNotes: { type: String, default: '' },
+      detailedError: { type: String, default: '' },
+      detailedCreatedAt: { type: Date },
+      detailedUpdatedAt: { type: Date },
     },
   },
   { timestamps: true }

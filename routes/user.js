@@ -14,7 +14,7 @@ const { annotateEventsWithTranscripts, getTranscript } = require('../utils/trans
 
 const Transcript = require('../models/Transcript');
 const { vttToText } = require('../utils/vtt');
-const { generateMeetingSummary } = require('../utils/openaiSummary');
+const { generateMeetingSummary, generateDetailedMeetingNotes } = require('../utils/openaiSummary');
 
 // helper windows
 function past30DaysIncludingToday() {
@@ -272,6 +272,8 @@ router.get('/home', requireUser, (req, res) => {
     org: req.user.org,
   });
 });
+
+
 
 // GET /user/calendar (cached transcript-events for last N days, with optional refresh)
 // router.get('/calendar', requireUser, ensureUserFreshToken, async (req, res) => {
@@ -961,6 +963,67 @@ router.get(
         doc = await Transcript.findById(doc._id);
       }
 
+      // ----------------------
+// ✅ Generate Detailed Notes (separate from transcript)
+// ----------------------
+if (!doc.ai?.detailedNotes && (doc.ai?.detailedStatus === 'none' || doc.ai?.detailedStatus === 'error')) {
+
+  // Acquire lock for detailed notes
+  await Transcript.updateOne(
+    {
+      _id: doc._id,
+      $or: [
+        { 'ai.detailedStatus': { $in: ['none', 'error'] } },
+        { 'ai.detailedStatus': { $exists: false } },
+      ],
+    },
+    { $set: { 'ai.detailedStatus': 'queued', 'ai.detailedUpdatedAt': new Date() } }
+  );
+
+  doc = await Transcript.findById(doc._id);
+
+  if (doc.ai?.detailedStatus === 'queued' && !doc.ai?.detailedNotes) {
+    try {
+      console.log('AI detailed notes generating:', String(doc._id), 'len:', (doc.text || '').length);
+
+      const { model, notes } = await generateDetailedMeetingNotes({
+        text: doc.text || '',
+        subject: doc.subject || req.query.subject || '',
+      });
+
+      await Transcript.updateOne(
+        { _id: doc._id },
+        {
+          $set: {
+            'ai.detailedStatus': 'done',
+            'ai.detailedModel': model,
+            'ai.detailedNotes': notes,
+            'ai.detailedError': '',
+            'ai.detailedCreatedAt': doc.ai?.detailedCreatedAt || new Date(),
+            'ai.detailedUpdatedAt': new Date(),
+          },
+        }
+      );
+    } catch (err) {
+      console.log('AI detailed notes failed:', err);
+
+      await Transcript.updateOne(
+        { _id: doc._id },
+        {
+          $set: {
+            'ai.detailedStatus': 'error',
+            'ai.detailedError': err.message || String(err),
+            'ai.detailedUpdatedAt': new Date(),
+          },
+        }
+      );
+    }
+  }
+
+  doc = await Transcript.findById(doc._id);
+}
+
+
       // Acquire lock
       await Transcript.updateOne(
         {
@@ -1047,5 +1110,19 @@ router.get('/transcript/saved/:id/summary', requireUser, async (req, res) => {
     doc,
   });
 });
+
+router.get('/transcript/saved/:id/notes', requireUser, async (req, res) => {
+  const doc = await Transcript.findById(req.params.id);
+  if (!doc) return res.status(404).send('Transcript not found');
+  if (String(doc.orgId) !== String(req.user.org?._id)) return res.status(403).send('Forbidden');
+
+  return res.render('user/detailed_notes', {
+    title: 'Detailed Notes',
+    user: req.user,
+    org: req.user.org,
+    doc,
+  });
+});
+
 
 module.exports = router;

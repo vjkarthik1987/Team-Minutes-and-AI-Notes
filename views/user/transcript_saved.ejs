@@ -58,6 +58,10 @@
       <a class="btn btn-primary" href="/user/transcript/saved/<%= doc._id %>/summary" rel="noopener">
         Open AI summary →
       </a>
+      <a class="btn btn-ghost" href="/user/transcript/saved/<%= doc._id %>/notes" rel="noopener"
+        style="<%= (doc.ai?.detailedStatus === 'done' && doc.ai?.detailedNotes) ? '' : '' %>">
+       Detailed Notes
+     </a>     
     <% } %>
   </div>
 </div>
@@ -117,11 +121,6 @@
         <span class="btn-text">Copy</span>
         <span class="btn-spinner" aria-hidden="true"></span>
       </button>
-
-      <a class="btn btn-ghost" href="/user/transcript/saved/<%= doc._id %>/summary" rel="noopener"
-         style="<%= hasSummary ? '' : 'display:none;' %>">
-        Summary
-      </a>
     </div>
   </div>
 

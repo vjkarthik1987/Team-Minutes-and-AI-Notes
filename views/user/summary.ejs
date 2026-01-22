@@ -238,13 +238,6 @@
             continue;
           }
 
-          if (/^\d+\.\s*".*"$/.test(t) || /^".*"$/.test(t)) {
-            closeListIfNeeded();
-      %>
-            <div class="quote"><%= esc(t.replace(/^\d+\.\s*/, '').replace(/^"|"$/g, '')) %></div>
-      <%
-            continue;
-          }
 
           closeListIfNeeded();
       %>

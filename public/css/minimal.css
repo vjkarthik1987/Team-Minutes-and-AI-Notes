@@ -599,3 +599,19 @@ a:hover { text-decoration: underline; }
   -webkit-tap-highlight-color: transparent;
 }
 
+.doc h2{
+  margin: 34px 0 12px;
+}
+
+.doc h3{
+  margin: 26px 0 10px;
+}
+
+.doc p{
+  margin: 12px 0;
+}
+
+.doc h2 + p,
+.doc h3 + p{
+  margin-top: 6px;
+}
