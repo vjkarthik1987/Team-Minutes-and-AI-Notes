@@ -1,0 +1,16 @@
+<section class="v8-mail-fallback">
+  <div class="v8-mail-card">
+    <p class="eyebrow">Outlook compose fallback</p>
+    <h1>MOM pack is ready</h1>
+    <p class="muted">Graph could not send this directly, so open Outlook with the recipients, subject and body prefilled. Attachments cannot be auto-added through a browser compose link, so the transcript and action items are included in the email body.</p>
+    <% if (typeof graphError !== 'undefined' && graphError) { %><p class="muted"><strong>Graph response:</strong> <%= graphError %></p><% } %>
+    <div class="v8-mail-actions">
+      <a href="<%= outlookUrl %>" target="_blank" rel="noopener">Open in Outlook Web</a>
+      <a href="<%= mailtoUrl %>">Open default mail app</a>
+      <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('momBody').innerText);this.textContent='Copied'">Copy body</button>
+    </div>
+    <p><strong>To:</strong> <%= recipients.join(', ') %></p>
+    <p><strong>Subject:</strong> <%= subject %></p>
+    <pre id="momBody" class="v8-mail-preview"><%= body %></pre>
+  </div>
+</section>

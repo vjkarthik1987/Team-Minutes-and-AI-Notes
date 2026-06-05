@@ -1,0 +1,16 @@
+<% layout('layout') %>
+<section class="page-hero compact v9-tight-hero"><div><div class="v3-kicker">Dashboard</div><h1>Action dashboard</h1><p>Role-aware action item health across the selected period.</p></div></section>
+<form class="filter-row v9-date-filter" method="GET"><label>From <input type="date" name="from" value="<%= from.toISOString().slice(0,10) %>"></label><label>To <input type="date" name="to" value="<%= to.toISOString().slice(0,10) %>"></label><button class="v5-secondary">Apply</button></form>
+<section class="v9-metric-grid">
+  <article><span>Total</span><strong><%= actions.length %></strong></article>
+  <article><span>Open</span><strong><%= statusCounts.Open || 0 %></strong></article>
+  <article><span>In Progress</span><strong><%= statusCounts['In Progress'] || 0 %></strong></article>
+  <article><span>Finished</span><strong><%= statusCounts.Done || 0 %></strong></article>
+  <article><span>Dropped</span><strong><%= statusCounts.Dropped || 0 %></strong></article>
+</section>
+<section class="v9-dashboard-grid">
+  <article class="v9-panel"><h2>Status mix</h2><div class="v9-bars"><% Object.keys(statusCounts).forEach(k=>{ var v=statusCounts[k]; var pct=actions.length?Math.round(v/actions.length*100):0; %><div><label><%= k %> <b><%= v %></b></label><span><i style="width:<%= pct %>%"></i></span></div><% }) %></div></article>
+  <article class="v9-panel"><h2>By owner</h2><table class="v8-table"><thead><tr><th>Owner</th><th>Actions</th><th>Follow-up</th></tr></thead><tbody><% Object.entries(byOwner).slice(0,12).forEach(([k,v], idx)=>{ var modalId='ownerActions'+idx; %><tr><td><%= k %></td><td><button class="v11-count-link" type="button" onclick="document.getElementById('<%= modalId %>').classList.add('open')"><%= v %></button></td><td><button class="v11-follow-btn small" type="button">Follow-up</button></td></tr><% }) %></tbody></table></article>
+<% Object.entries(ownerActionMap || {}).slice(0,12).forEach(([k,list], idx)=>{ var modalId='ownerActions'+idx; %><div id="<%= modalId %>" class="v11-modal"><div class="v11-modal-card"><div class="v10-pop-head"><strong><%= k %> — action items</strong><button type="button" onclick="document.getElementById('<%= modalId %>').classList.remove('open')">×</button></div><table class="v8-table"><thead><tr><th>Action</th><th>Due</th><th>Status</th><th>Priority</th></tr></thead><tbody><% list.forEach(a=>{ %><tr><td><%= a.title %><br><small><%= a.meetingSubject || 'General' %></small></td><td><%= a.dueDate || 'No date' %></td><td><%= a.status %></td><td><%= a.priority || '' %></td></tr><% }) %></tbody></table></div></div><% }) %>
+  <article class="v9-panel wide"><h2>Recently completed</h2><table class="v8-table"><thead><tr><th>Action</th><th>Owner</th><th>Meeting</th></tr></thead><tbody><% recentDone.forEach(a=>{ %><tr><td><%= a.title %></td><td><%= a.ownerName || a.ownerEmail || 'Unassigned' %></td><td><%= a.meetingSubject || 'General' %></td></tr><% }) %></tbody></table></article>
+</section>

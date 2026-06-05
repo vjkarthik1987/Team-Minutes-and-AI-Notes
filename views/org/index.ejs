@@ -1,0 +1,19 @@
+<% layout('layout') %>
+
+<h1><%= org.name %></h1>
+<p>Org dashboard</p>
+
+<ul style="margin-top:16px;">
+  <li>
+    <a href="/org/users">Manage users</a> / <a href="/org/users/bulk">Bulk upload</a>
+  </li>
+  <li>
+    <a href="/org/login-logs">User login logs</a>
+  </li>
+  <li>
+    <a href="/org/settings">Update details</a>
+  </li>
+  <li>
+    <a href="/org/diagnostics">Diagnostics</a> / <a href="/org/errors">Error logs</a>
+  </li>
+</ul>

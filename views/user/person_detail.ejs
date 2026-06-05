@@ -1,0 +1,15 @@
+<% layout('layout') %>
+<div class="page-head">
+  <div><a class="muted" href="/user/people">← People</a><h1 class="title"><%= person.name || person.email %></h1><p class="muted"><%= person.email %></p></div>
+  <div class="v22-mini-stats"><span><b><%= person.openActions %></b> open</span><span><b><%= person.waitingActions %></b> waiting</span><span><b><%= person.overdueActions %></b> overdue</span><span><b><%= person.escalatedActions %></b> escalated</span></div>
+</div>
+<section class="v22-action-layout">
+  <main class="v22-action-main">
+    <section class="card"><h2>Ownership Map</h2><h3>Owned Threads</h3><% if(!ownedThreads.length){ %><p class="muted">No owned threads.</p><% } %><% ownedThreads.forEach(t=>{ %><p><a href="/user/threads/<%= t._id %>"><strong><%= t.name %></strong></a> · <%= t.status %> · <%= t.priority || 'No priority' %></p><% }) %><h3>Collaborating On</h3><% if(!contributingThreads.length){ %><p class="muted">No collaboration threads.</p><% } %><% contributingThreads.forEach(t=>{ %><p><a href="/user/threads/<%= t._id %>"><strong><%= t.name %></strong></a> · <%= t.status %></p><% }) %></section>
+    <section class="card"><h2>Actions</h2><% if(!actions.length){ %><p class="muted">No actions found.</p><% } %><% actions.forEach(a=>{ %><div class="v22-action-row"><a href="/user/actions/<%= a._id %>"><strong><%= a.title %></strong></a><small><%= a.status %> · due <%= a.dueDate || 'Unclear' %></small></div><% }) %></section>
+    <section class="card"><h2>Signals</h2><% if(!signals.length){ %><p class="muted">No signals yet.</p><% } %><% signals.forEach(s=>{ %><div class="v22-signal"><strong><%= s.title %></strong><small><%= s.signalType %> · <%= s.severity %></small><p><%= s.detail || '' %></p></div><% }) %></section>
+  </main>
+  <aside class="v22-action-side">
+    <section class="card"><h2>Alias Memory</h2><% if(!aliases.length){ %><p class="muted">No aliases yet. Add short names like “Sreejith TG”, “STG”, “NK”.</p><% } %><% aliases.forEach(a=>{ %><p><strong><%= a.alias %></strong></p><% }) %><form method="POST" action="/user/people/<%= encodeURIComponent(person.email) %>/aliases" class="v15-side-form"><input type="hidden" name="canonicalName" value="<%= person.name || '' %>"><label>New alias<input name="alias" placeholder="Sreejith TG / STG" required></label><button class="v5-secondary">Add alias</button></form></section>
+  </aside>
+</section>

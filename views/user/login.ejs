@@ -1,0 +1,12 @@
+<% layout('layout') %>
+<section class="auth auth-simple v8-switch-login">
+  <div class="auth-card">
+    <div class="auth-badge">Minutes</div>
+    <h1 class="auth-title">Choose your entry</h1>
+    <p class="auth-sub">Sign in with your SunTec Microsoft 365 account. No workspace name required.</p>
+    <div class="v8-login-switch"><a class="active" href="/user/login">User</a><a href="/auth/login">Org/Admin</a></div>
+    <form method="POST" action="/user/login" class="auth-form">
+      <button type="submit" class="btn btn-primary auth-cta"><span class="btn-text">Continue with Microsoft 365</span><span class="btn-arrow">→</span></button>
+    </form>
+  </div>
+</section>

@@ -1,0 +1,123 @@
+<% layout('layout') %>
+<datalist id="v166PeopleList">
+  <% ((typeof users !== 'undefined' && users) ? users : []).forEach(u => { %><option value="<%= u.name || u.email %> <%= u.email ? '('+u.email+')' : '' %>"><% }) %>
+</datalist>
+
+<div class="page-head v16-head">
+  <div>
+    <h1 class="title">Outcome Threads</h1>
+    <p class="muted">Executive list of active outcomes. Threads are not folders — they are living context rooms for decisions, risks, actions, calls and meeting memory.</p>
+  </div>
+  <div class="v16-head-actions">
+    <button class="v5-secondary" type="button" data-modal-open="v16ContextModal">+ Context</button>
+    <button class="v5-primary" type="button" data-modal-open="v16ThreadModal">+ Thread</button>
+  </div>
+</div>
+
+<% if (!threads.length) { %>
+  <div class="card empty"><p>No outcome threads yet. Use <strong>+ Thread</strong> to create one for a client outcome, release, escalation, governance theme, or delivery objective.</p></div>
+<% } %>
+
+<div class="v16-thread-grid">
+<% threads.forEach(t => { var entries=t.entries||[]; var openActions=entries.filter(e=>e.kind==='action' && !/done|closed|complete/i.test(e.status||'')).length; var risks=entries.filter(e=>e.kind==='risk' && !/done|closed|resolved/i.test(e.status||'')).length; var next=nextByThread && nextByThread[String(t._id)]; var rating=Number(t.ai?.healthScore||0); if(!rating){rating=risks?5:openActions?7:8;} rating=Math.max(1,Math.min(10,Math.round(rating))); var hLabel=t.ai?.healthLabel || (rating<=3?'Critical':rating<=5?'At Risk':rating===6?'OK':rating<=8?'Good':'Strong'); var hClass=rating===1?'darkred':rating<=3?'red':rating===4?'orange':rating===5?'yellow':rating<=7?'lightgreen':'green'; var confidence=t.ai?.confidence || (((t.meetingIds||[]).length+entries.length)>=6?'High':(((t.meetingIds||[]).length+entries.length)>=2?'Medium':'Low')); %>
+  <section class="v16-thread-card v248-thread-card v248-health-<%= hClass %>">
+    <div class="v16-thread-top">
+      <span class="v15-status <%= String(t.status||'Active').toLowerCase().replace(/\s+/g,'-') %>"><%= t.status || 'Active' %></span>
+      <span class="v16-source-pill v248-health-pill v248-health-<%= hClass %>"><%= hLabel %> (<%= rating %>/10)</span><span class="v16-source-pill">Confidence: <%= confidence %></span>
+    </div>
+    <h2><a href="/user/threads/<%= t._id %>"><%= t.name %></a></h2>
+    <p class="v16-outcome"><%= t.objective || 'No outcome yet. Add what this thread is driving.' %></p>
+    <div class="v16-ai-summary">
+      <strong>Latest executive read</strong>
+      <p><%= String(t.ai?.insight || t.ai?.executiveMemory || t.ai?.progressSummary || 'Not generated yet. Use Refresh AI Summary, or wait for the 6:00 AM IST refresh.').replace(/Intelligent Summary\s*-?/ig,'').replace(/[#*]/g,'').slice(0,300) %><%= (t.ai?.insight || t.ai?.executiveMemory || t.ai?.progressSummary || '').length > 300 ? '…' : '' %></p>
+    </div>
+    <div class="v16-metrics">
+      <span><b><%= risks %></b> open risks</span>
+      <span><b><%= openActions %></b> open actions</span>
+      <span><b><%= fmtTime(t.updatedAt) %></b> last updated</span>
+    </div>
+    <div class="v16-next"><strong>Next related meeting:</strong> <%= next ? ((next.subject || 'Meeting') + ' · ' + fmtTime(next.startDateTime)) : 'None linked yet' %></div>
+    <% if (t.recurringChain?.enabled) { %><div class="v16-next"><strong>Recurring chain:</strong> <%= t.recurringChain.connectedCount || 0 %> meeting(s) connected</div><% } %>
+    <div class="v16-card-actions">
+      <a class="v5-secondary" href="/user/threads/<%= t._id %>">Open</a>
+      <form method="POST" action="/user/threads/<%= t._id %>/analyze" class="js-ai-summary-form"><button class="v5-secondary js-ai-summary-btn" type="submit"><span>Refresh AI Summary</span></button></form>
+      <% if (String(t.ownerEmail||'').toLowerCase() === String(user.email||'').toLowerCase() || String(t.createdBy||'') === String(user._id||'')) { %>
+        <form method="POST" action="/user/threads/<%= t._id %>/delete" onsubmit="return confirm('Delete this thread? Linked meetings and transcripts will remain, but the thread will be removed from active lists.');"><button class="v5-danger" type="submit">Delete</button></form>
+      <% } %>
+    </div>
+  </section>
+<% }) %>
+</div>
+
+<div class="v16-modal" id="v16ThreadModal" aria-hidden="true">
+  <div class="v16-modal-card">
+    <button class="v16-modal-close" type="button" data-modal-close>×</button>
+    <h2>Create Thread</h2>
+    <form method="POST" action="/user/threads" class="v16-form">
+      <label>Thread name<input name="name" placeholder="e.g., ING Release Stabilization" required /></label>
+      <label>Outcome<textarea name="objective" placeholder="Stabilize ING release readiness and reduce last-minute deployment surprises."></textarea></label>
+      <label>Owner<input value="<%= user.email %>" disabled /></label>
+      <label>Members / contributors<textarea name="contributorEmails" placeholder="assistant@suntecgroup.com, pm@suntecgroup.com"></textarea></label>
+      <details class="v15-picker"><summary>Link initial meetings</summary>
+        <div class="v5-meeting-picker">
+          <% meetings.forEach(m => { %><label><input type="checkbox" name="meetingIds" value="<%= m._id %>" /> <strong><%= m.subject || 'Meeting' %></strong><small><%= fmtTime(m.startDateTime) %></small></label><% }) %>
+        </div>
+      </details>
+      <button class="v5-primary" type="submit">Create</button>
+    </form>
+  </div>
+</div>
+
+<div class="v16-modal" id="v16ContextModal" aria-hidden="true">
+  <div class="v16-modal-card wide">
+    <button class="v16-modal-close" type="button" data-modal-close>×</button>
+    <h2>Add Context</h2>
+    <form method="POST" action="/user/contexts" class="v16-form">
+      <label>Type<select name="contextType"><option value="call">Call note</option><option value="general">General note</option><option value="generated">Generated note</option><option value="manual_meeting">Manual meeting</option></select></label>
+      <label>Title<input name="title" placeholder="I had a call with X / Manual meeting title" /></label>
+      <label>Date / time<input type="datetime-local" name="occurredAt" /></label>
+      <div class="v166-people-picker" data-people-picker>
+        <label>People involved</label>
+        <input type="text" class="v166-people-search" list="v166PeopleList" placeholder="Type 3 letters, select a person…" />
+        <input type="hidden" name="people" class="v166-people-hidden" />
+        <div class="v166-people-chips"></div>
+      </div>
+      <label>Note / rough bullets<textarea name="contextText" placeholder="Paste notes or rough bullets. For Generated note, these will be cleaned into a note."></textarea></label>
+      <label>Optionally link to thread<select name="threadId"><option value="">Do not link</option><% threads.forEach(t=>{ %><option value="<%= t._id %>"><%= t.name %></option><% }) %></select></label>
+      <label>Visibility<select name="visibility"><option value="private">Private to me</option><option value="thread">Visible to thread members</option><option value="org">Visible to org/admin later</option></select></label>
+      <button class="v5-primary" type="submit">Add Context</button>
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+  document.querySelectorAll('[data-modal-open]').forEach(btn=>btn.addEventListener('click',()=>{ var m=document.getElementById(btn.dataset.modalOpen); if(m){m.classList.add('open');m.setAttribute('aria-hidden','false');}}));
+  document.querySelectorAll('[data-modal-close]').forEach(btn=>btn.addEventListener('click',()=>{ var m=btn.closest('.v16-modal'); if(m){m.classList.remove('open');m.setAttribute('aria-hidden','true');}}));
+  document.querySelectorAll('.v16-modal').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m){m.classList.remove('open');m.setAttribute('aria-hidden','true');}}));
+})();
+</script>
+
+<script>
+(function(){
+  document.querySelectorAll('.js-ai-summary-form').forEach(form=>form.addEventListener('submit',()=>{
+    const btn=form.querySelector('.js-ai-summary-btn');
+    if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.innerHTML='<span class="v166-spinner"></span><span>Generating executive summary…</span>'; }
+    const card=form.closest('.v16-thread-card') || document.querySelector('.v16-thread-detail') || form.parentElement;
+    if(card){ var note=document.createElement('div'); note.className='v166-ai-progress'; note.textContent='Reading linked meetings, risks, decisions and actions…'; form.after(note); setTimeout(()=>{note.textContent='Building Chief-of-Staff synthesis from evidence…'},900); }
+  }));
+})();
+</script>
+
+<script>
+(function initPeoplePickers(){
+  function valToEmail(v){ var m=String(v||'').match(/\(([^)@]+@[^)]+)\)/); return (m?m[1]:v).trim(); }
+  document.querySelectorAll('[data-people-picker]').forEach(box=>{
+    const input=box.querySelector('.v166-people-search'), hidden=box.querySelector('.v166-people-hidden'), chips=box.querySelector('.v166-people-chips');
+    let values=[];
+    function render(){ hidden.value=values.join(', '); chips.innerHTML=values.map(v=>`<span class="v166-chip">${v}<button type="button" data-v="${v.replace(/"/g,'&quot;')}">×</button></span>`).join(''); }
+    input.addEventListener('change',()=>{ var v=valToEmail(input.value); if(v && v.length>=3 && !values.includes(v)){values.push(v);render();} input.value=''; });
+    chips.addEventListener('click',e=>{ if(e.target.tagName==='BUTTON'){ values=values.filter(v=>v!==e.target.dataset.v); render(); } });
+  });
+})();
+</script>

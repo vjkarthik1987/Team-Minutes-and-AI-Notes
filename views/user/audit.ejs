@@ -1,0 +1,7 @@
+<% layout('layout') %>
+<div class="page-head"><div><h1 class="title">Audit Log</h1><p class="muted">Superadmin view of user, action, status and thread changes.</p></div></div>
+<div class="audit-list">
+<% (logs || []).forEach(l => { %>
+  <article class="audit-row"><div><strong><%= l.action %></strong><p><%= l.summary || '-' %></p></div><div><span><%= l.actorEmail || '-' %></span><small><%= new Date(l.createdAt).toLocaleString('en-IN') %></small></div></article>
+<% }) %>
+</div>

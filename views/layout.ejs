@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f97316">
+  <link rel="icon" type="image/png" href="/img/fav-ico.png">
+  <link rel="stylesheet" href="/css/minimal.css?v=24.8">
+  <title><%= title || 'Meeting Memory' %></title>
+</head>
+<% var v24ActiveNavClass = typeof activeNav !== 'undefined' && activeNav ? ('v24-nav-' + activeNav) : ''; %>
+<body class="<%= (typeof autoOpenChat !== 'undefined' && autoOpenChat) ? 'v24-chat-open' : '' %> <%= v24ActiveNavClass %>">
+  <% var useFullBleed = typeof fullBleed !== 'undefined' && fullBleed; %>
+  <% var isUserShell = typeof user !== 'undefined' && user && user.email; %>
+  <% var isOrgShell = !isUserShell && typeof org !== 'undefined' && org && org.loginEmail; %>
+  <% if (useFullBleed) { %>
+    <%- body %>
+  <% } else if (isUserShell) { %>
+    <% var nav = typeof activeNav !== 'undefined' ? activeNav : ''; %>
+    <div class="v82-three-pane-shell">
+      <aside class="v82-sidebar">
+        <a class="v5-brand v82-brand" href="/user/home"><span>✦</span><strong>Minutes</strong></a>
+        <div class="v82-tenant-card">
+          <small><%= org?.name || 'Workspace' %></small>
+          <strong><%= user.name || user.email %></strong>
+          <span><%= user.email %></span>
+        </div>
+        <nav class="v82-nav">
+          <a href="/user/home" class="<%= nav === 'home' ? 'active' : '' %>">Home</a>
+          <a href="/user/day-command" class="<%= nav === 'day-command' ? 'active' : '' %>">Day Command</a>
+          <a href="/user/calendar" class="<%= nav === 'calendar' ? 'active' : '' %>">Calendar</a>
+          <a href="/user/dashboard" class="<%= nav === 'dashboard' ? 'active' : '' %>">Dashboard</a>
+          <a href="/user/actions" class="<%= nav === 'actions' ? 'active' : '' %>">Actions</a>
+          <a href="/user/threads" class="<%= nav === 'threads' ? 'active' : '' %>">Threads</a>
+          <a href="/user/people" class="<%= nav === 'people' ? 'active' : '' %>">People</a>
+          <a href="/user/assistant" class="<%= nav === 'assistant' ? 'active' : '' %>">Assistant work</a>
+          <a href="/user/collaborators" class="<%= nav === 'collaborators' ? 'active' : '' %>">Collaborators</a>
+          <a href="/user/settings" class="<%= nav === 'settings' ? 'active' : '' %>">Settings</a>
+          <a href="/user/transparency" class="<%= nav === 'transparency' ? 'active' : '' %>">Transparency</a>
+          <% if (user.role === 'super_admin' || user.role === 'ceo') { %><a href="/user/summaries" class="<%= nav === 'summaries' ? 'active' : '' %>">Summaries</a><% } %>
+          <% if (user.role === 'super_admin' || user.permissions?.canViewAuditLog) { %><a href="/user/audit" class="<%= nav === 'audit' ? 'active' : '' %>">Audit</a><% } %>
+        </nav>
+        <div class="v161-shell-tools">
+          <button id="v161LoadAiBtn" class="v161-load-btn" type="button">⚡ Load transcripts <span id="v161PendingPill">…</span></button>
+          <small id="v161LastLoad">Last AI load: checking…</small>
+          <button id="v165AddNoteBtn" class="v165-note-btn" type="button">＋ Add a note</button>
+          <button id="v161NotifyBtn" class="v161-notify-btn" type="button">🔔 Notifications <span id="v161NotifyCount">0</span></button>
+        </div>
+        <div class="v82-sidebar-bottom">
+          <a class="v82-switch-link" href="/auth/login">Switch to org login</a>
+          <form method="POST" action="/user/logout"><button type="submit">Logout</button></form>
+        </div>
+      </aside>
+
+      <section class="v82-chat-panel">
+        <div class="v5-chat-head">
+          <div><span>AI meeting memory</span><strong>Ask Kili</strong><small class="v12-chat-persona">Sharp, grounded, no hallucinated meeting mix-ups.</small></div>
+          <div class="v8-chat-head-actions"><button id="v5ClearChat" type="button">Clear</button><button id="v24CloseChat" class="v24-close-chat" type="button" aria-label="Close AI copilot">×</button></div>
+        </div>
+        <div id="v5Messages" class="v5-messages"><div class="v5-msg bot"><b>✨</b><p>I’m Kili. Ask me from meeting memory — I’ll cite the right meeting or say I don’t know.</p></div></div>
+        <div class="v23-chat-modes"><button type="button" class="active" data-mode="auto">Auto</button><button type="button" data-mode="brief">Brief</button><button type="button" data-mode="thread">Thread</button><button type="button" data-mode="action">Action</button><button type="button" data-mode="people">People</button></div><div class="v5-composer"><textarea id="v5Prompt" placeholder="Ask follow-up, prep, ownership, blockers, metrics or assign action…"></textarea><button id="v5SendBtn" type="button">➤</button></div>
+      </section>
+      <button id="v24ChatFab" class="v24-chat-fab" type="button" aria-label="Open AI copilot">✨ Ask Kili</button>
+
+      <main class="v82-main"><%- body %></main>
+      <div id="v165NotePanel" class="v161-notification-panel v165-note-panel">
+        <div class="v10-pop-head"><strong>Add a note to memory</strong><button id="v165NoteClose" type="button">×</button></div>
+        <form method="POST" action="/user/notes" class="v165-note-form v17-note-form">
+          <input type="hidden" name="returnTo" value="/user/home" />
+          <label>What are you adding?
+            <select name="noteType" id="v17NoteType">
+              <option value="personal_note">Personal memory / reminder</option>
+              <option value="call">Call note</option>
+              <option value="manual_meeting">Manual meeting</option>
+              <option value="general">General note</option>
+              <option value="generated">Clean up rough bullets</option>
+            </select>
+          </label>
+          <label>Title <input name="title" placeholder="Optional — e.g. Call with Suresh on hierarchy" /></label>
+          <label>People involved
+            <div class="v17-people-picker" data-hidden="v17NotePeopleHidden">
+              <div class="v17-chip-row"></div>
+              <input id="v17NotePeopleSearch" type="text" placeholder="Type 3 letters — Sreejith, Aneesh…" autocomplete="off" />
+              <div class="v17-people-results"></div>
+            </div>
+            <input type="hidden" id="v17NotePeopleHidden" name="people" />
+          </label>
+          <label>Date / time <input name="occurredAt" type="datetime-local" /></label>
+          <label>Note <textarea name="note" rows="5" placeholder="Example: Had a call with X. We agreed to close the hierarchy decision before Friday…" required></textarea></label>
+          <label>Keep active / remind until <input name="remindUntil" placeholder="tomorrow, next Friday, 2026-05-30…" /></label>
+          <p class="muted">Kili will treat this as searchable context. Personal memory remains private; call/meeting/general notes can include people.</p>
+          <button class="v5-primary" type="submit">Save context</button>
+        </form>
+      </div>
+      <div id="v161NotificationsPanel" class="v161-notification-panel">
+        <div class="v10-pop-head"><strong>Notifications</strong><button id="v161NotifyClose" type="button">×</button></div>
+        <div id="v161NotificationContent" class="v161-notification-content"><p class="muted">Loading…</p></div>
+      </div>
+    </div>
+  <% } else if (isOrgShell) { %>
+    <div class="v8-user-shell">
+      <header class="v8-topbar"><a class="v5-brand" href="/org"><span>✦</span><strong>Minutes Admin</strong></a><nav class="v8-topnav"><a href="/org">Dashboard</a><a href="/org/users">Users</a><a href="/org/users/bulk">Bulk upload</a><a href="/org/login-logs">Login logs</a><a href="/org/settings">Settings</a></nav><div class="v8-user-actions"><span><%= org.name || org.loginEmail %></span><form method="POST" action="/auth/logout"><button>Logout</button></form></div></header>
+      <main class="v8-user-main"><%- body %></main>
+    </div>
+  <% } else { %>
+    <main class="v8-public-main"><%- body %></main>
+  <% } %>
+<script>
+(function(){
+  const body=document.body;
+  const fab=document.getElementById('v24ChatFab');
+  const close=document.getElementById('v24CloseChat');
+  const prompt=document.getElementById('v5Prompt');
+  function openChat(){ body.classList.add('v24-chat-open'); setTimeout(()=>prompt?.focus(),120); }
+  function closeChat(){ body.classList.remove('v24-chat-open'); }
+  fab?.addEventListener('click',openChat);
+  close?.addEventListener('click',closeChat);
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape' && body.classList.contains('v24-chat-open')) closeChat(); });
+})();
+</script>
+
+<script>
+(function(){
+  const hasChat = !!document.getElementById('v5Messages');
+  if(!hasChat) return;
+  const box = document.getElementById('v5Messages');
+  const prompt = document.getElementById('v5Prompt');
+  const send = document.getElementById('v5SendBtn');
+  const clear = document.getElementById('v5ClearChat');
+  function esc(s){ return String(s||'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c])); }
+  function sourceTraceHtml(sources){ if(!sources||!sources.length) return ''; return `<details class="v19-source-trace"><summary>Why did AI answer this?</summary><ul>${sources.slice(0,6).map((s,i)=>`<li><strong>${i+1}. ${esc(s.subject||s.title||'Source')}</strong><small>${esc(s.startDateTime||s.createdAt||'')}${s.match?' · '+esc(s.match):''}${s.meetingScore?' · score '+Number(s.meetingScore).toFixed(1):''}</small></li>`).join('')}</ul><div class="v19-trace-note">Answer was grounded on the listed accessible meetings/notes/context selected by retrieval.</div></details>`; }
+  function add(role, text, sources){ var row=document.createElement('div'); row.className='v5-msg '+(role==='user'?'user':'bot'); var icon=document.createElement('b'); icon.textContent=role==='user'?'🙂':'⚡'; var wrap=document.createElement('div'); wrap.className='v12-msg-wrap'; var p=document.createElement('p'); p.textContent=text; if(role!=='user'){ var copy=document.createElement('button'); copy.type='button'; copy.className='v12-copy-response'; copy.title='Copy response'; copy.innerHTML='□<span>□</span>'; copy.addEventListener('click', async()=>{ try{ await navigator.clipboard.writeText(text); copy.classList.add('copied'); setTimeout(()=>copy.classList.remove('copied'),900); }catch(e){} }); wrap.appendChild(copy); } wrap.appendChild(p); if(role!=='user') wrap.insertAdjacentHTML('beforeend', sourceTraceHtml(sources||[])); row.appendChild(icon); row.appendChild(wrap); box.appendChild(row); box.scrollTop=box.scrollHeight; return row; }
+  function addThinking(){ var row=document.createElement('div'); row.className='v5-msg bot v112-thinking'; var icon=document.createElement('b'); icon.textContent='✨'; var p=document.createElement('p'); p.innerHTML='<span class="v112-dot"></span><span class="v112-dot"></span><span class="v112-dot"></span><em>Searching meeting memory…</em>'; row.appendChild(icon); row.appendChild(p); box.appendChild(row); box.scrollTop=box.scrollHeight; return row; }
+  async function loadHistory(){ try{ var r=await fetch('/user/chat/history'); var d=await r.json(); if(d.messages && d.messages.length){ box.innerHTML=''; d.messages.forEach(m=>add(m.role,m.message,m.sources||[])); } }catch(e){} }
+  async function retrieveMeetings(query){ var threadId=(document.getElementById('v15ThreadContext')?.dataset?.threadId)||''; var r=await fetch('/user/chat/retrieve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,threadId,limitMeetings:5,chunksPerMeeting:4})}); var d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||'retrieve failed'); return d; }
+  let v23ChatMode='auto'; document.querySelectorAll('.v23-chat-modes button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.v23-chat-modes button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); v23ChatMode=b.dataset.mode||'auto'; prompt.focus();}));
+  async function answer(query,data){ var ids=(data.meetings||[]).map(x=>x.transcriptDocId).filter(Boolean); if(/latest|last|recent|previous/i.test(query) && ids.length) ids=ids.slice(0,1); else ids=ids.slice(0,5); if(!ids.length) ids.push('chat-action-only'); var threadId=(document.getElementById('v15ThreadContext')?.dataset?.threadId)||''; var r=await fetch('/user/chat/answer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,threadId,transcriptDocIds:ids,mode:v23ChatMode})}); var d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||'answer failed'); return d; }
+  async function sendMsg(){ var q=(prompt.value||'').trim(); if(!q) return; add('user',q); prompt.value=''; send.disabled=true; var thinking=addThinking(); try{ var data={meetings:[]}; try{ data=await retrieveMeetings(q); }catch(e){} const ans=await answer(q,data); var txt=ans.answer||'No answer.'; thinking.remove(); add('assistant',txt,ans.sources||[]); } catch(e){ thinking.remove(); add('assistant','Something broke: '+(e.message||e)); } finally{ send.disabled=false; prompt.focus(); } }
+  send?.addEventListener('click', sendMsg); prompt?.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMsg(); }}); clear?.addEventListener('click', async()=>{ await fetch('/user/chat/clear',{method:'POST'}); box.innerHTML=''; add('assistant','Chat history cleared.'); }); loadHistory();
+})();
+</script>
+
+<script>
+(function(){
+  const loadBtn=document.getElementById('v161LoadAiBtn');
+  const pendingPill=document.getElementById('v161PendingPill');
+  const lastLoad=document.getElementById('v161LastLoad');
+  const notifyBtn=document.getElementById('v161NotifyBtn');
+  const noteBtn=document.getElementById('v165AddNoteBtn');
+  const notePanel=document.getElementById('v165NotePanel');
+  const noteClose=document.getElementById('v165NoteClose');
+  const notifyCount=document.getElementById('v161NotifyCount');
+  const panel=document.getElementById('v161NotificationsPanel');
+  const panelBody=document.getElementById('v161NotificationContent');
+  const close=document.getElementById('v161NotifyClose');
+  if(!loadBtn) return;
+  function fmtDate(iso){ if(!iso) return 'never'; var d=new Date(iso); if(isNaN(d)) return 'never'; return d.toLocaleString(undefined,{day:'2-digit',month:'short',hour:'numeric',minute:'2-digit',hour12:true}); }
+  function esc(s){ return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function itemHtml(a){ return `<li><strong>${esc(a.title)}</strong><small>${esc(a.meetingSubject||'General')} · ${esc(a.status||'Open')} · due ${esc(a.dueDate||'Unclear')}</small></li>`; }
+  async function refreshShell(){
+    try{
+      const r=await fetch('/user/shell/status'); var d=await r.json(); if(!d.ok) return;
+      const pending=d.transcripts?.pending||0;
+      pendingPill.textContent=String(pending);
+      pendingPill.className=pending?'hot':'';
+      lastLoad.textContent=`Last AI load: ${fmtDate(d.transcripts?.lastTranscriptAiLoadAt)}${d.transcripts?.lastSyncStatus==='running'?' · running':''}`;
+      const n=d.notifications||{}; var total=(n.assigned||0)+(n.overdue||0)+(n.closed||0); notifyCount.textContent=String(total);
+      const items=n.items||{};
+      panelBody.innerHTML=`
+        <div class="v10-notify-grid"><div><b>${n.assigned||0}</b><small>Open/assigned</small></div><div><b>${n.overdue||0}</b><small>Overdue</small></div><div><b>${n.closed||0}</b><small>Closed this week</small></div></div>
+        <h4>Overdue</h4><ul>${(items.overdue||[]).map(itemHtml).join('') || '<li><small>No overdue items.</small></li>'}</ul>
+        <h4>Open / assigned</h4><ul>${(items.assigned||[]).map(itemHtml).join('') || '<li><small>No open assigned items.</small></li>'}</ul>
+        <h4>Recently closed</h4><ul>${(items.closed||[]).map(itemHtml).join('') || '<li><small>No recent closures.</small></li>'}</ul>`;
+    }catch(e){}
+  }
+  async function loadTranscripts(){
+    const old=loadBtn.innerHTML; loadBtn.disabled=true; loadBtn.innerHTML='Loading…';
+    try{
+      const r=await fetch('/user/ai/load-all',{method:'POST'}); var d=await r.json();
+      loadBtn.innerHTML=`Loaded ${d.processed||0} · Pending ${d.pending||0}`;
+      setTimeout(()=>{loadBtn.innerHTML=old; loadBtn.disabled=false; refreshShell();},1800);
+    }catch(e){ loadBtn.innerHTML='Load failed'; setTimeout(()=>{loadBtn.innerHTML=old; loadBtn.disabled=false;},1800); }
+  }
+  loadBtn.addEventListener('click',loadTranscripts);
+  notifyBtn?.addEventListener('click',()=>{ panel?.classList.toggle('open'); notePanel?.classList.remove('open'); refreshShell(); });
+  close?.addEventListener('click',()=>panel?.classList.remove('open'));
+  noteBtn?.addEventListener('click',()=>{ notePanel?.classList.toggle('open'); panel?.classList.remove('open'); });
+  noteClose?.addEventListener('click',()=>notePanel?.classList.remove('open'));
+
+  // v17 people picker for notes/calls/manual meetings.
+  const peopleInput=document.getElementById('v17NotePeopleSearch');
+  const peoplePicker=peopleInput?.closest('.v17-people-picker');
+  const chipRow=peoplePicker?.querySelector('.v17-chip-row');
+  const resultBox=peoplePicker?.querySelector('.v17-people-results');
+  const hidden=document.getElementById(peoplePicker?.dataset?.hidden||'');
+  const picked=new Map();
+  function renderPeople(){
+    if(!chipRow || !hidden) return;
+    chipRow.innerHTML='';
+    [...picked.values()].forEach(p=>{ var chip=document.createElement('span'); chip.className='v17-person-chip'; chip.innerHTML=`${esc(p.name||p.email)} <button type="button" aria-label="Remove">×</button>`; chip.querySelector('button').addEventListener('click',()=>{picked.delete(p.email||p.name); renderPeople();}); chipRow.appendChild(chip); });
+    hidden.value=[...picked.values()].map(p=>p.email||p.name).join(', ');
+  }
+  let peopleTimer=null;
+  peopleInput?.addEventListener('input',()=>{
+    const q=(peopleInput.value||'').trim();
+    clearTimeout(peopleTimer);
+    if(!resultBox) return;
+    if(q.length<3){ resultBox.innerHTML=''; resultBox.classList.remove('open'); return; }
+    peopleTimer=setTimeout(async()=>{
+      try{ var r=await fetch('/user/people/search?q='+encodeURIComponent(q)); var d=await r.json();
+        resultBox.innerHTML=(d.people||[]).map(p=>`<button type="button" data-email="${esc(p.email)}" data-name="${esc(p.name||p.email)}"><strong>${esc(p.name||p.email)}</strong><small>${esc(p.email)}</small></button>`).join('') || '<small>No people found. You can type an email manually.</small>';
+        resultBox.classList.add('open');
+      }catch(e){}
+    },220);
+  });
+  resultBox?.addEventListener('click',e=>{ var b=e.target.closest('button[data-email]'); if(!b) return; var p={email:b.dataset.email,name:b.dataset.name}; picked.set(p.email||p.name,p); peopleInput.value=''; resultBox.innerHTML=''; resultBox.classList.remove('open'); renderPeople(); });
+  peopleInput?.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); var raw=(peopleInput.value||'').trim(); if(raw){ picked.set(raw.toLowerCase(),{email:raw.includes('@')?raw.toLowerCase():raw,name:raw}); peopleInput.value=''; renderPeople(); } }});
+  refreshShell(); setInterval(refreshShell,60000);
+})();
+</script>
+
+</body>
+</html>

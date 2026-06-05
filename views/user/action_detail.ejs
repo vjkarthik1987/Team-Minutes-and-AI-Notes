@@ -1,0 +1,78 @@
+<% layout('layout') %>
+<div class="v2481-action-page">
+<div class="page-head">
+  <div>
+    <a class="muted" href="/user/actions">← Actions</a>
+    <h1 class="title"><%= item.title %></h1>
+    <p class="muted"><%= item.meetingSubject || 'Unlinked action' %><%= thread ? ' · Thread: '+thread.name : '' %></p>
+  </div>
+  <span class="v15-status <%= String(item.status||'Open').toLowerCase().replace(/\s+/g,'-') %>"><%= item.status || 'Open' %></span>
+</div>
+
+<section class="v22-action-layout">
+  <main class="v22-action-main">
+    <section class="card">
+      <h2>Action Details</h2>
+      <div class="v22-kv-grid">
+        <div><small>Owner</small><strong><%= item.ownerName || item.ownerEmail || 'Unassigned' %></strong></div>
+        <div><small>Due</small><strong><%= item.dueDate || 'Unclear' %></strong></div>
+        <div><small>Priority</small><strong><%= item.priority || 'Medium' %></strong></div>
+        <div><small>Source</small><strong><%= item.source || 'manual' %></strong></div>
+      </div>
+      <% if(item.description){ %><p><%= item.description %></p><% } %>
+      <% if(item.blockedReason){ %><p class="v22-risk-note"><strong>Blocked:</strong> <%= item.blockedReason %></p><% } %>
+      <% if(item.escalated){ %><p class="v22-risk-note"><strong>Escalated:</strong> <%= item.escalationNote || 'No note' %></p><% } %>
+    </section>
+
+    <section class="card">
+      <h2>Updates / Comments</h2>
+      <% if(!(item.comments||[]).length){ %><p class="muted">No updates yet. Use this to record execution progress, blockers, escalations, and completion notes.</p><% } %>
+      <div class="v22-timeline">
+        <% (item.comments||[]).slice().reverse().forEach(c=>{ %>
+          <article><strong><%= c.createdByEmail || 'Update' %></strong><small><%= c.createdAt ? new Date(c.createdAt).toLocaleString() : '' %></small><p><%= c.body %></p></article>
+        <% }) %>
+      </div>
+      <form method="POST" action="/user/actions/<%= item._id %>/comment" class="v22-inline-form">
+        <textarea name="comment" rows="3" placeholder="Add progress update, blocker note, dependency, or completion comment" required></textarea>
+        <button class="v5-primary">Add update</button>
+      </form>
+    </section>
+
+    <% if(meeting){ %>
+    <section class="card">
+      <h2>Linked Meeting Context</h2>
+      <p><strong><%= meeting.subject || 'Meeting' %></strong></p>
+      <p class="muted"><%= meeting.startDateTime || '' %></p>
+      <p><%= meeting.ai?.summary ? String(meeting.ai.summary).slice(0, 700) : 'No AI summary available yet.' %></p>
+      <a class="v5-secondary mini" href="/user/transcript/saved/<%= meeting._id %>">Open transcript</a>
+    </section>
+    <% } %>
+  </main>
+
+  <aside class="v22-action-side">
+    <% if(canAssign){ %>
+    <section class="card">
+      <h2>Update Status</h2>
+      <form method="POST" action="/user/actions/<%= item._id %>/update" class="v15-side-form">
+        <label>Status<select name="status"><% ['Open','In Progress','Waiting','Done','Dropped'].forEach(s=>{ %><option value="<%= s %>" <%= item.status===s?'selected':'' %>><%= s %></option><% }) %></select></label>
+        <label>Priority<select name="priority"><% ['Low','Medium','High','Unclear'].forEach(s=>{ %><option value="<%= s %>" <%= item.priority===s?'selected':'' %>><%= s %></option><% }) %></select></label>
+        <label>Owner<select name="ownerEmail"><option value="">Unassigned</option><% assignableUsers.forEach(u=>{ %><option value="<%= u.email %>" <%= item.ownerEmail===u.email?'selected':'' %>><%= u.name || u.email %></option><% }) %></select></label>
+        <label>Due date<input name="dueDate" value="<%= item.dueDate || '' %>" /></label>
+        <button class="v5-secondary">Save action</button>
+      </form>
+    </section>
+    <section class="card">
+      <h2>Escalate / Reassign</h2>
+      <form method="POST" action="/user/actions/<%= item._id %>/escalate" class="v15-side-form"><label>Escalation note<textarea name="escalationNote"></textarea></label><button class="v5-danger">Escalate</button></form>
+      <form method="POST" action="/user/actions/<%= item._id %>/reassign" class="v15-side-form"><label>New owner<select name="ownerEmail"><option value="">Unassigned</option><% assignableUsers.forEach(u=>{ %><option value="<%= u.email %>"><%= u.name || u.email %></option><% }) %></select></label><button class="v5-secondary">Reassign</button></form>
+    </section>
+    <% } %>
+    <section class="card">
+      <h2>People Signals</h2>
+      <% if(!(relatedSignals||[]).length){ %><p class="muted">No people signals yet.</p><% } %>
+      <% (relatedSignals||[]).forEach(s=>{ %><div class="v22-signal"><strong><%= s.title %></strong><small><%= s.signalType %> · <%= s.severity %></small></div><% }) %>
+    </section>
+  </aside>
+</section>
+
+</div>

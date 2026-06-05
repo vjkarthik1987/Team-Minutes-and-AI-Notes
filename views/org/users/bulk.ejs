@@ -1,0 +1,15 @@
+<% layout('layout') %>
+<section class="page-hero compact"><div><div class="v3-kicker">Org users</div><h1>Bulk upload users</h1><p>Upload a CSV to create or update users for this org.</p></div><a class="v5-secondary" href="/org/users">Back to users</a></section>
+<section class="v8-form-card">
+  <h2>CSV format</h2>
+  <pre class="v8-code">name,email,role,status,canAssignActions,canAssignFollowups,canViewAuditLog
+Karthik,karthik@suntecgroup.com,general_user,active,true,true,false
+Anu,anu@suntecgroup.com,ceo,active,false,false,false</pre>
+  <% if (result) { %><div class="v8-result"><% if (result.error) { %><strong><%= result.error %></strong><% } else { %><strong>Created <%= result.created %>, updated <%= result.updated %>, skipped <%= result.skipped %></strong><% if (result.errors && result.errors.length) { %><ul><% result.errors.forEach(e => { %><li><%= e %></li><% }) %></ul><% } %><% } %></div><% } %>
+  <form method="post" action="/org/users/bulk" class="v8-stack">
+    <input type="file" id="csvFile" accept=".csv,text/csv" />
+    <textarea id="csvText" name="csv" rows="12" placeholder="Paste CSV here"></textarea>
+    <button class="v5-primary" type="submit">Upload users</button>
+  </form>
+</section>
+<script>document.getElementById('csvFile')?.addEventListener('change', async e=>{ var f=e.target.files[0]; if(f) document.getElementById('csvText').value = await f.text(); });</script>

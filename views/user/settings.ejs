@@ -1,0 +1,77 @@
+<% layout('layout') %>
+
+<div class="page-head v164-settings-head">
+  <div>
+    <h1 class="title">My Settings</h1>
+    <p class="muted">Manage personal memory and assistant behavior. Collaborator access now has its own screen.</p>
+  </div>
+  <div class="v173-head-actions">
+    <a class="v5-secondary" href="/user/collaborators">Manage collaborators</a>
+    <a class="v5-secondary" href="/user/assistant">Assistant work</a>
+  </div>
+</div>
+
+<section class="v164-settings-grid">
+  <section class="card">
+    <h2>Collaborators</h2>
+    <p class="muted">Add assistants, PMs, or trusted delegates you commonly allow to help capture context, actions, risks or notes.</p>
+    <% var collaborators = user.collaborators || []; %>
+    <% if (!collaborators.length) { %>
+      <p class="muted">No collaborators added yet.</p>
+    <% } %>
+    <div class="v164-collab-list">
+      <% collaborators.forEach(c => { %>
+        <article class="v164-collab-card">
+          <div>
+            <strong><%= c.name || c.email %></strong>
+            <small><%= c.email %> · <%= c.role || 'collaborator' %></small>
+            <p class="muted"><%= c.canAddContext ? 'Can add context' : 'Context disabled' %><%= c.canAddActions ? ' · Can add actions' : '' %></p>
+          </div>
+          <form method="POST" action="/user/settings/collaborators/remove">
+            <input type="hidden" name="email" value="<%= c.email %>" />
+            <button class="v5-secondary danger" type="submit">Remove</button>
+          </form>
+        </article>
+      <% }) %>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Add collaborator</h2>
+    <form method="POST" action="/user/settings/collaborators" class="v16-form">
+      <label>Email<input name="email" list="v164OrgUsers" placeholder="assistant@suntecgroup.com" required /></label>
+      <datalist id="v164OrgUsers">
+        <% (users || []).forEach(u => { %><option value="<%= u.email %>"><%= u.name || u.email %></option><% }) %>
+      </datalist>
+      <label>Name<input name="name" placeholder="Optional display name" /></label>
+      <label>Role<select name="role"><option value="assistant">Assistant</option><option value="delegate">Delegate</option><option value="collaborator">Collaborator</option></select></label>
+      <label class="v164-check"><input type="checkbox" name="canAddContext" checked /> Can add context when added to a thread</label>
+      <label class="v164-check"><input type="checkbox" name="canAddActions" /> Can add action items when added to a thread</label>
+      <button class="v5-primary" type="submit">Save collaborator</button>
+    </form>
+  </section>
+</section>
+
+
+<section class="card v166-memory-card">
+  <div class="v166-card-title"><div><h2>Memory for AI</h2><p class="muted">Add team structure, employee aliases, responsibilities, acronyms, and context that should help the chatbot reason better.</p></div></div>
+  <form method="POST" action="/user/settings/memory" class="v16-form v166-memory-form">
+    <label>Memory label<input name="label" placeholder="Team structure / Employee aliases / Product ownership" /></label>
+    <label>Scope<select name="scope"><option value="user">Only for me</option><option value="org">Org-level note</option></select></label>
+    <label>Details<textarea name="body" placeholder="Example: Sreejith TG owns platform architecture discussions. Aneesh handles hierarchy/platform integration. NK = CEO."></textarea></label>
+    <button class="v5-primary" type="submit">Add memory</button>
+  </form>
+  <div class="v166-memory-list">
+    <% ((user.memoryBlocks || [])).slice().reverse().forEach(m => { %>
+      <article class="v166-memory-item">
+        <div><strong><%= m.label || 'Memory note' %></strong><small><%= m.scope || 'user' %></small><p><%= m.body %></p></div>
+        <form method="POST" action="/user/settings/memory/remove"><input type="hidden" name="id" value="<%= m._id %>" /><button class="v5-secondary danger" type="submit">Remove</button></form>
+      </article>
+    <% }) %>
+  </div>
+</section>
+
+<section class="card v164-settings-note">
+  <h2>How this works</h2>
+  <p>Collaborators here are your personal shortlist. They still need to be added as contributors/viewers on a thread before they can see or contribute to that thread.</p>
+</section>

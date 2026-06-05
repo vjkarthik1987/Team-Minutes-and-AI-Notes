@@ -1,0 +1,17 @@
+<% layout('layout') %>
+<section class="auth auth-simple v8-switch-login">
+  <div class="auth-card">
+    <div class="auth-badge">Minutes Admin</div>
+    <h1 class="auth-title">Org login</h1>
+    <p class="auth-sub">Admin setup for users, domains and Graph connection.</p>
+    <div class="v8-login-switch"><a href="/user/login">User</a><a class="active" href="/auth/login">Org/Admin</a></div>
+    <form method="POST" action="/auth/login" class="auth-form">
+      <label class="auth-label" for="email">Admin email</label>
+      <div class="auth-field"><input id="email" name="email" type="email" required class="auth-input" placeholder="admin@company.com" /></div>
+      <label class="auth-label" for="password">Password</label>
+      <div class="auth-field"><input id="password" name="password" type="password" required class="auth-input" placeholder="••••••••" /></div>
+      <button type="submit" class="btn btn-primary auth-cta"><span class="btn-text">Log in</span><span class="btn-arrow">→</span></button>
+      <p class="auth-hint">New organisation? <a href="/auth/signup">Create one</a></p>
+    </form>
+  </div>
+</section>

@@ -1,0 +1,339 @@
+<% layout('layout') %>
+<datalist id="v166PeopleList">
+  <% ((typeof users !== 'undefined' && users) ? users : []).forEach(u => { %><option value="<%= u.name || u.email %> <%= u.email ? '('+u.email+')' : '' %>"><% }) %>
+</datalist>
+<div id="v15ThreadContext" data-thread-id="<%= thread._id %>"></div>
+
+<% var v245Entries = thread.entries || []; var v245Meetings = (meetings || []).slice().sort((a,b)=>new Date(b.startDateTime||0)-new Date(a.startDateTime||0)); var v245Actions = v245Entries.filter(e => e.kind === 'action'); var v245Risks = v245Entries.filter(e => e.kind === 'risk' && !/done|closed|resolved/i.test(e.status||'')); var v245Decisions = v245Entries.filter(e => e.kind === 'decision'); var v245Health = Number(thread.ai?.healthScore || 0); if (!v245Health) { v245Health = v245Risks.length ? 5 : v245Actions.length ? 7 : 8; } v245Health = Math.max(1, Math.min(10, Math.round(v245Health))); var v245HealthLabel = thread.ai?.healthLabel || (v245Health <= 3 ? 'Critical' : v245Health <= 5 ? 'At Risk' : v245Health === 6 ? 'OK' : v245Health <= 8 ? 'Good' : 'Strong'); var v245Confidence = thread.ai?.confidence || (((v245Meetings.length + v245Entries.length) >= 6) ? 'High' : ((v245Meetings.length + v245Entries.length) >= 2 ? 'Medium' : 'Low')); var v245HealthClass = v245Health === 1 ? 'darkred' : v245Health <= 3 ? 'red' : v245Health === 4 ? 'orange' : v245Health === 5 ? 'yellow' : v245Health <= 7 ? 'lightgreen' : 'green'; var v245Diary = []; v245Meetings.forEach(function(m){ v245Diary.push({ kind:'meeting', label:'Meeting', date:m.startDateTime, title:m.subject || 'Meeting', body:m.ai?.summary || 'No AI summary stored yet.', detail:m.ai?.detailedNotes || '', transcriptId:m._id, files:m.attachments || [], links:{ transcript:'/user/transcript/saved/'+m._id, summary:'/user/transcript/saved/'+m._id+'/summary', notes:'/user/transcript/saved/'+m._id+'/notes' } }); }); v245Entries.forEach(function(e){ v245Diary.push({ entryId:e._id, kind:e.kind || 'context', label:e.sourceType || e.kind || 'Context', date:e.occurredAt || e.createdAt, title:e.title || e.kind || 'Context', body:e.body || '', detail:'', ownerEmail:e.ownerEmail || '', dueDate:e.dueDate || '', status:e.status || '', severity:e.severity || '', people:e.people || [], visibility:e.visibility || 'thread', confidence:e.confidence || '', linkedTranscriptId:e.linkedTranscriptId || '', checklist:e.checklist || [], files:e.files || e.attachments || [] }); }); v245Diary.sort(function(a,b){ return new Date(b.date||0) - new Date(a.date||0); }); %>
+
+<div class="page-head v245-thread-head">
+  <div>
+    <a class="muted" href="/user/threads">← Threads</a>
+    <h1 class="title"><%= thread.name %></h1>
+    <p class="muted">Outcome: <%= thread.objective || 'Outcome not set yet.' %></p>
+  </div>
+  <div class="v16-head-actions v245-head-actions">
+    <% if (canContrib) { %>
+      <button class="v5-secondary v245-quirky-btn" type="button" data-modal-open="v245AddMeetingsModal">📎 Add meetings</button>
+      <button class="v5-secondary v245-quirky-btn" type="button" data-modal-open="v16AddContextModal">✍️ Add context</button>
+    <% } %>
+    <form method="POST" action="/user/threads/<%= thread._id %>/generate-insight" class="js-ai-summary-form"><button class="v5-primary js-ai-summary-btn" type="submit"><span>✨ Generate insight</span></button></form>
+    <form method="POST" action="/user/threads/<%= thread._id %>/analyze" class="js-ai-summary-form"><button class="v5-secondary js-ai-summary-btn" type="submit"><span>Refresh AI summary</span></button></form>
+  </div>
+</div>
+
+<section class="v245-thread-shell">
+  <main class="v245-thread-main">
+    <section class="card v15-outcome-card v245-outcome-card v247-main-thread-card v248-health-<%= v245HealthClass %>">
+      <div class="v15-thread-top"><span class="v15-status <%= String(thread.status||'Active').toLowerCase().replace(/\s+/g,'-') %>"><%= thread.status || 'Active' %></span><span class="v245-spark-pill v248-health-pill v248-health-<%= v245HealthClass %>">🧠 <%= v245HealthLabel %> (<%= v245Health %>/10)</span><span class="v248-confidence-pill">Confidence: <%= v245Confidence %></span><% if(thread.ai?.suggestedStatus){ %><span class="v15-health">AI suggests: <%= thread.ai.suggestedStatus %></span><% } %></div>
+      <h2>Outcome</h2>
+      <p><%= thread.objective || 'Not set' %></p>
+      <p class="muted">Owner: <%= thread.ownerEmail || 'Not set' %> · Contributors: <%= (thread.contributorEmails||[]).join(', ') || 'None' %></p>
+      <div class="v2481-ai-health-readonly">
+        <div><small>AI-derived status</small><strong><%= thread.ai?.suggestedStatus || thread.status || 'Active' %></strong></div>
+        <div><small>Health</small><strong><%= v245HealthLabel %> · <%= v245Health %>/10</strong></div>
+        <div><small>Confidence</small><strong><%= v245Confidence %></strong></div>
+      </div>
+      <p class="muted v2481-readonly-note">AI suggests the status and health from meetings, risks, actions, gaps and recent context. You can override the health rating when your judgement differs.</p>
+    </section>
+
+    <section class="card v242-core-card v245-insight-card" id="insight">
+      <div class="v245-mini-stats">
+        <article><strong><%= v245Meetings.length %></strong><span>Meetings</span></article>
+        <article><strong><%= v245Entries.length %></strong><span>Context</span></article>
+        <article><strong><%= v245Actions.length %></strong><span>Follow-ups</span></article>
+        <article><strong><%= v245Risks.length %></strong><span>Open risks</span></article>
+      </div>
+      <form method="POST" action="/user/threads/<%= thread._id %>/insight" class="v15-side-form">
+        <label>Insight — AI generated, human editable<textarea name="insight" <%= canContrib ? '' : 'readonly' %> placeholder="Example: Scope is drifting because decisions are not closed; next follow-up should focus on ownership and timeline."><%= thread.ai?.insight || thread.ai?.executiveMemory || thread.ai?.progressSummary || '' %></textarea></label>
+        <% if (canContrib) { %><button class="v5-primary v246-save-insight" type="submit">Save human insight</button><% } %>
+      </form>
+    </section>
+
+
+    <section class="card v247-key-intel-card v2481-key-intel-card" id="key-intel">
+      <div class="v16-section-head"><div><h2>Key things to decide / gaps</h2><p class="muted">Human judgement layer: capture what the AI may miss before the next meeting.</p></div></div>
+      <form method="POST" action="/user/threads/<%= thread._id %>/intelligence-fields" class="v2481-key-stack">
+        <label>Key things to decide<textarea name="keyDecisionsNeeded" placeholder="Example: Confirm V2 scope, decide go-live owner, freeze migration path"><%= thread.keyDecisionsNeeded || '' %></textarea></label>
+        <label>Key gaps<textarea name="keyGaps" placeholder="Example: No clarity on existing V1 feature parity; performance/security targets not quantified"><%= thread.keyGaps || '' %></textarea></label>
+        <label>Open questions / things to watch<textarea name="keyQuestions" placeholder="Example: What blocks market-ready release? Who owns closure by date?"><%= thread.keyQuestions || '' %></textarea></label>
+        <% if (canContrib) { %><div class="v2481-save-row"><button class="v5-primary v247-orange-save" type="submit">Save key intelligence</button></div><% } %>
+      </form>
+    </section>
+
+    <section class="card v245-diary-card">
+      <div class="v16-section-head"><div><h2>Thread diary</h2><p class="muted">Meetings, AI notes, human context, follow-ups, attached files and decisions in one evidence stream.</p></div></div>
+      <div class="v245-diary-list">
+        <% if (thread.ai?.insight || thread.ai?.executiveMemory || thread.ai?.progressSummary) { %>
+          <article class="v245-diary-item v2482-intelligence-diary" id="diary-intelligence">
+            <div class="v245-diary-mark"><span>🧠</span></div>
+            <div class="v245-diary-body">
+              <div class="v245-diary-top"><span class="v245-diary-badge">Intelligence</span><small>Latest executive read</small></div>
+              <h3>Current CEO-ready view</h3>
+              <p><%= thread.ai?.insight || thread.ai?.executiveMemory || thread.ai?.progressSummary || '' %></p>
+              <div class="v245-diary-meta"><span>Health: <%= v245HealthLabel %> (<%= v245Health %>/10)</span></div>
+            </div>
+          </article>
+        <% } %>
+        <% if (!v245Diary.length) { %><p class="muted">No diary items yet. Add meetings or add context to build the thread memory.</p><% } %>
+        <% v245Diary.forEach(function(item){ var badgeClass = String(item.kind||'context').toLowerCase().replace(/[^a-z0-9]+/g,'-'); %>
+          <article class="v245-diary-item v245-diary-<%= badgeClass %>">
+            <div class="v245-diary-mark"><span><%= item.kind === 'meeting' ? '🎙️' : item.kind === 'action' ? '✅' : item.kind === 'risk' ? '⚠️' : item.kind === 'decision' ? '🔐' : item.kind === 'call' ? '☎️' : '📝' %></span></div>
+            <div class="v245-diary-body">
+              <div class="v245-diary-top"><span class="v245-diary-badge"><%= item.label %></span><small><%= fmtTime(item.date) %><%= item.visibility ? ' · '+item.visibility : '' %><%= item.confidence ? ' · '+item.confidence+' confidence' : '' %></small></div>
+              <h3><%= item.title %></h3>
+              <% if (item.body) { %><p><%= String(item.body).slice(0, 700) %><%= String(item.body).length > 700 ? '…' : '' %></p><% } %>
+              <% if (item.links) { %><div class="v246-diary-links"><a href="<%= item.links.transcript %>">Open transcript</a><a href="<%= item.links.summary %>">Transcript summary</a><a href="<%= item.links.notes %>">AI note</a></div><% } %>
+              <% if (item.detail) { %><details><summary>AI notes</summary><p><%= String(item.detail).slice(0, 1200) %><%= String(item.detail).length > 1200 ? '…' : '' %></p></details><% } %>
+              <% if (item.checklist && item.checklist.length) { %><ul class="v246-checklist"><% item.checklist.forEach(function(c){ %><li class="<%= c.done ? 'done' : '' %>"><span></span><%= c.text || c %></li><% }) %></ul><% } %>
+              <% if (item.entryId && canContrib && item.kind !== 'meeting') { %>
+                <details class="v2491-edit-entry"><summary>Edit note / add files</summary>
+                  <form method="POST" action="/user/threads/<%= thread._id %>/entries/<%= item.entryId %>/update" enctype="multipart/form-data">
+                    <input name="title" value="<%= item.title || '' %>" placeholder="Title" />
+                    <textarea name="body"><%= item.body || '' %></textarea>
+                    <label class="mini-label">Add files/images<input type="file" name="files" multiple accept=".txt,.md,.pdf,.doc,.docx,.ppt,.pptx,image/*" /></label>
+                    <button class="v5-secondary mini" type="submit">Save note</button>
+                  </form>
+                </details>
+              <% } %>
+              <% if (item.kind === 'action' && item.entryId && canContrib) { %>
+                <form method="POST" action="/user/threads/<%= thread._id %>/entries/<%= item.entryId %>/update" class="v2482-inline-action-update">
+                  <select name="status"><% ['Open','In Progress','Waiting','Done','Dropped'].forEach(function(s){ %><option value="<%= s %>" <%= item.status===s?'selected':'' %>><%= s %></option><% }) %></select>
+                  <input name="ownerEmail" value="<%= item.ownerEmail || '' %>" placeholder="Owner email" />
+                  <input type="date" name="dueDate" value="<%= item.dueDate ? new Date(item.dueDate).toISOString().slice(0,10) : '' %>" />
+                  <button class="v5-secondary mini" type="submit">Update</button>
+                </form>
+              <% } %>
+              <% if (item.files && item.files.length) { %><div class="v246-file-list"><% item.files.forEach(function(f){ var fileName = f.originalName || f.fileName || f.filename || f.name || 'Attachment'; var rawPath = f.path || f.url || ''; var storedName = f.fileName || f.filename || ''; var fileUrl = rawPath || (storedName ? ('/uploads/meeting-files/' + storedName) : '#'); if (fileUrl && fileUrl[0] !== '/' && !/^https?:/i.test(fileUrl)) fileUrl = '/uploads/meeting-files/' + fileUrl; var isImg = /image\//i.test(f.mimeType || '') || /\.(png|jpg|jpeg|gif|webp)$/i.test(fileName) || /\.(png|jpg|jpeg|gif|webp)$/i.test(fileUrl); %><a href="<%= encodeURI(fileUrl) %>" target="_blank" class="v246-file-chip"><% if(isImg){ %><img src="<%= encodeURI(fileUrl) %>" alt="" onerror="this.closest('a').classList.add('image-missing');this.remove();"><% } %><span><%= fileName %></span></a><% }) %></div><% } %>
+              <div class="v245-diary-meta">
+                <% if (item.people && item.people.length) { %><span>People: <%= item.people.join(', ') %></span><% } %>
+                <% if (item.ownerEmail) { %><span>Owner: <%= item.ownerEmail %></span><% } %>
+                <% if (item.dueDate) { %><span>Next follow-up: <%= fmtTime(item.dueDate) %></span><% } %>
+                <% if (item.status) { %><span>Status: <%= item.status %></span><% } %>
+                <% if (item.severity) { %><span>Severity: <%= item.severity %></span><% } %>
+                <% if (item.files && item.files.length) { %><span>Files: <%= item.files.length %> attached</span><% } else { %><span>Files: none attached</span><% } %>
+              </div>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+    </section>
+  </main>
+
+  <aside class="v245-thread-side">
+    <section class="card v249-side-key-intel" id="side-key-intel">
+      <h2>Key intelligence</h2>
+      <div class="v249-key-mini">
+        <div><small>Things to decide</small><p><%= thread.keyDecisionsNeeded || 'No key decision captured yet.' %></p></div>
+        <div><small>Gaps</small><p><%= thread.keyGaps || 'No key gap captured yet.' %></p></div>
+        <div><small>Open questions</small><p><%= thread.keyQuestions || 'No open question captured yet.' %></p></div>
+      </div>
+      <a class="v5-secondary mini" href="#key-intel">Update key intelligence</a>
+    </section>
+    <section class="card v245-graph-card" id="metrics">
+      <div class="v16-section-head"><div><h2>Graphs</h2><p class="muted">Thread metrics stay on the right.</p></div></div>
+      <div class="v21-action-stat-grid v245-action-stats">
+        <div><strong><%= actionStats?.total || 0 %></strong><span>Total</span></div>
+        <div><strong><%= actionStats?.open || 0 %></strong><span>Open</span></div>
+        <div><strong><%= actionStats?.waiting || 0 %></strong><span>Waiting</span></div>
+        <div><strong><%= actionStats?.overdue || 0 %></strong><span>Overdue</span></div>
+      </div>
+      <% if (!(metrics || []).length) { %><p class="muted">No graphs yet. Add a metric below and update it regularly.</p><% } %>
+      <% (metrics || []).forEach(function(metric){ var pts=(metric.points||[]).slice().sort(function(a,b){return new Date(a.recordedAt)-new Date(b.recordedAt)}); var vals=pts.map(function(p){return Number(p.value||0)}); var max=Math.max(1,...vals); var min=Math.min(0,...vals); var range=Math.max(1,max-min); var coords=pts.map(function(p,i){ var x=pts.length<=1?50:(i/(pts.length-1))*100; var y=100-(((Number(p.value||0)-min)/range)*86+7); return x+','+y; }).join(' '); %>
+        <article class="v21-metric v245-side-metric">
+          <div class="v21-metric-head"><div><h3><%= metric.name %></h3><p class="muted"><%= metric.unit || 'count' %></p></div><strong><%= pts.length ? pts[pts.length-1].value : 0 %></strong></div>
+          <% if (pts.length) { %>
+            <% if (metric.chartType === 'bar') { %>
+              <div class="v21-bar-chart"><% pts.forEach(function(p){ var h=Math.max(6, ((Number(p.value||0)-min)/range)*100); %><div><span style="height:<%= h %>%"></span><small><%= new Date(p.recordedAt).toLocaleDateString(undefined,{day:'2-digit',month:'short'}) %></small></div><% }) %></div>
+            <% } else { %>
+              <svg class="v21-line-chart" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points="<%= coords %>" fill="none" stroke="currentColor" stroke-width="3" vector-effect="non-scaling-stroke"/><% pts.forEach(function(p,i){ var xy=(coords.split(' ')[i]||'0,0').split(','); %><circle cx="<%= xy[0] %>" cy="<%= xy[1] %>" r="1.8" fill="currentColor"/><% }) %></svg>
+            <% } %>
+          <% } %>
+          <% if (canContrib) { %><form method="POST" action="/user/threads/<%= thread._id %>/metrics/<%= metric._id %>/points" class="v21-metric-update"><input type="number" step="any" name="value" required placeholder="Value"><input type="date" name="recordedAt"><button class="v5-secondary mini">Update</button></form><% } %>
+        </article>
+      <% }) %>
+    </section>
+
+    <% if (canContrib) { %>
+    <section class="card v245-side-card v246-add-graph-card">
+      <h2>Add graph</h2>
+      <button class="v5-primary v246-add-graph-btn" type="button" data-modal-open="v246AddGraphModal">📊 Add graph</button>
+    </section>
+    <div class="v16-modal" id="v246AddGraphModal" aria-hidden="true">
+      <div class="v16-modal-card">
+        <button class="v16-modal-close" type="button" data-modal-close>×</button>
+        <h2>Add graph metric</h2>
+        <form method="POST" action="/user/threads/<%= thread._id %>/metrics" class="v15-side-form">
+        <label>Metric name<input name="name" required placeholder="Defects closed" /></label>
+        <label>Value<input type="number" step="any" name="value" required /></label>
+        <label>Unit<input name="unit" value="count" /></label>
+        <label>Chart<select name="chartType"><option value="line">Line trend</option><option value="bar">Bar trend</option><option value="area">Area trend</option><option value="gauge">Gauge/progress</option></select></label>
+        <label>Direction<select name="direction"><option value="neutral">Neutral</option><option value="higher_is_better">Higher is better</option><option value="lower_is_better">Lower is better</option></select></label>
+        <button class="v5-primary" type="submit">Add metric</button>
+        </form>
+      </div>
+    </div>
+    <% } %>
+
+    <section class="card v245-side-card">
+      <h2>Linked meetings</h2>
+      <% if(!v245Meetings.length){ %><p class="muted">No Teams meetings linked yet.</p><% } %>
+      <% v245Meetings.slice(0,8).forEach(function(m){ %><div class="v15-linked-meeting"><strong><%= m.subject || 'Meeting' %></strong><small><%= fmtTime(m.startDateTime) %></small><% if(m.ai?.summary){ %><p><%= String(m.ai.summary).slice(0,120) %>...</p><% } %></div><% }) %>
+      <% if (canContrib) { %><button class="v5-secondary" type="button" data-modal-open="v245AddMeetingsModal">+ Add meetings</button><% } %>
+    </section>
+
+    <section class="card v245-side-card">
+      <h2>Thread settings</h2>
+      <form method="POST" action="/user/threads/<%= thread._id %>/update" class="v15-side-form">
+        <label>Name<input name="name" value="<%= thread.name %>" <%= canOwner ? '' : 'readonly' %> /></label>
+        <label>Outcome<textarea name="objective" <%= canOwner ? '' : 'readonly' %>><%= thread.objective || '' %></textarea></label>
+        <label>Priority<select name="priority" <%= canOwner ? '' : 'disabled' %>><% ['','Low','Medium','High','Critical'].forEach(function(s){ %><option <%= thread.priority===s?'selected':'' %>><%= s || 'None' %></option><% }) %></select></label>
+        <div class="v2481-side-health v2482-health-override-box">
+          <small>Current intelligence read</small>
+          <strong><%= thread.ai?.suggestedStatus || thread.status || 'Active' %> · <%= v245HealthLabel %> (<%= v245Health %>/10)</strong>
+          <span>AI suggests this, but you can override health when your judgement differs.</span>
+        </div>
+        <% if (canOwner) { %><button class="v5-secondary" type="submit">Save settings</button><% } else { %><p class="muted">Only the owner can edit core thread settings.</p><% } %>
+      </form>
+    </section>
+
+
+    <% if (canContrib) { %>
+    <section class="card v245-side-card v2482-health-card">
+      <h2>Health override</h2>
+      <p class="muted">Use this only when the AI read is directionally wrong. Status remains AI-suggested; health can reflect human judgement.</p>
+      <form method="POST" action="/user/threads/<%= thread._id %>/health-override" class="v15-side-form">
+        <label>Health override<select name="healthRating"><% for(var hs=1; hs<=10; hs++){ var lbl = hs<=2?'Critical':hs<=4?'At Risk':hs<=5?'Watch':hs<=6?'OK':hs<=8?'Good':'Strong'; %><option value="<%= hs %>" <%= v245Health===hs?'selected':'' %>><%= hs %>/10 — <%= lbl %></option><% } %></select></label>
+        <button class="v5-primary v247-orange-save" type="submit">Save health judgement</button>
+      </form>
+    </section>
+    <% } %>
+
+    <section class="card v245-side-card v2482-action-side-card">
+      <h2>Action items</h2>
+      <% if (!v245Actions.length) { %><p class="muted">No thread action items yet.</p><% } %>
+      <div class="v2482-side-actions">
+        <% v245Actions.forEach(function(a){ %>
+          <form method="POST" action="/user/threads/<%= thread._id %>/entries/<%= a._id %>/update" class="v2482-side-action">
+            <strong><%= a.title || 'Action item' %></strong>
+            <% if (a.body) { %><p><%= String(a.body).slice(0, 120) %><%= String(a.body).length > 120 ? '…' : '' %></p><% } %>
+            <select name="status"><% ['Open','In Progress','Waiting','Done','Dropped'].forEach(function(s){ %><option value="<%= s %>" <%= a.status===s?'selected':'' %>><%= s %></option><% }) %></select>
+            <input name="ownerEmail" value="<%= a.ownerEmail || '' %>" placeholder="Owner" />
+            <input type="date" name="dueDate" value="<%= a.dueDate ? new Date(a.dueDate).toISOString().slice(0,10) : '' %>" />
+            <% if (canContrib) { %><button class="v5-secondary mini" type="submit">Update</button><% } %>
+          </form>
+        <% }) %>
+      </div>
+    </section>
+    <% if (canContrib) { %>
+    <section class="card v245-side-card">
+      <h2>Recurring chain</h2>
+      <% if (thread.recurringChain?.enabled) { %><p><strong><%= thread.recurringChain.connectedCount || 0 %></strong> meeting(s) connected · key: <%= thread.recurringChain.subjectKey || 'manual' %></p><% } %>
+      <form method="POST" action="/user/threads/<%= thread._id %>/connect-recurring" class="v15-side-form">
+        <label>Recurring meeting name<input name="subject" placeholder="Daily Catch up - Commerz & ING Delivery" value="<%= thread.recurringChain?.subjectKey || '' %>" /></label>
+        <button class="v5-secondary" type="submit">Connect recurring meetings</button>
+      </form>
+    </section>
+    <% } %>
+
+    <% if (canOwner) { %>
+    <section class="card v245-side-card">
+      <h2>Permissions</h2>
+      <form method="POST" action="/user/threads/<%= thread._id %>/permissions" class="v15-side-form">
+        <label>Contributors<textarea name="contributorEmails" placeholder="Can add notes/context/actions/risks"><%= (thread.contributorEmails||[]).join(', ') %></textarea></label>
+        <label>Viewers<textarea name="viewerEmails" placeholder="Can view only"><%= (thread.viewerEmails||[]).join(', ') %></textarea></label>
+        <button class="v5-secondary" type="submit">Save permissions</button>
+      </form>
+    </section>
+    <% } %>
+
+    <% if (canOwner || String(thread.createdBy||'') === String(user._id||'')) { %>
+    <section class="card v164-danger-zone v245-side-card">
+      <h2>Delete thread</h2>
+      <p class="muted">Deletes the thread from active lists. Transcripts, meetings and action items are not deleted.</p>
+      <form method="POST" action="/user/threads/<%= thread._id %>/delete" onsubmit="return confirm('Delete this thread? This cannot be undone from the UI.');"><button class="v5-danger" type="submit">Delete thread</button></form>
+    </section>
+    <% } %>
+  </aside>
+</section>
+
+<div class="v16-modal" id="v245AddMeetingsModal" aria-hidden="true">
+  <div class="v16-modal-card wide">
+    <button class="v16-modal-close" type="button" data-modal-close>×</button>
+    <h2>Add meetings to thread</h2>
+    <p class="muted">Link meetings and transcripts into this thread so the generated insight has real evidence.</p>
+    <form method="POST" action="/user/threads/<%= thread._id %>/link-meetings" class="v16-form">
+      <div class="v5-meeting-picker compact v245-meeting-picker">
+        <% (allMeetings || []).forEach(function(m){ var alreadyLinked = (thread.meetingIds || []).map(String).includes(String(m._id)); %>
+          <label class="<%= alreadyLinked ? 'is-linked' : '' %>"><input type="checkbox" name="meetingIds" value="<%= m._id %>" <%= alreadyLinked ? 'disabled' : '' %> /> <strong><%= m.subject || 'Meeting' %></strong><small><%= fmtTime(m.startDateTime) %><%= alreadyLinked ? ' · already linked' : '' %></small></label>
+        <% }) %>
+      </div>
+      <button class="v5-primary" type="submit">Link selected meetings</button>
+    </form>
+  </div>
+</div>
+
+<div class="v16-modal" id="v16AddContextModal" aria-hidden="true">
+  <div class="v16-modal-card wide">
+    <button class="v16-modal-close" type="button" data-modal-close>×</button>
+    <h2>Add Context to Thread</h2>
+    <p class="muted">Capture summary, things to follow up, action owner, next follow-up date, risk/decision, people involved, and the meeting it refers to.</p>
+    <form method="POST" action="/user/threads/<%= thread._id %>/entry" class="v16-form" enctype="multipart/form-data">
+      <label>Type<select name="kind"><option value="note">Summary / context</option><option value="call">Call note</option><option value="generated_note">Clean generated note</option><option value="decision">Decision</option><option value="risk">Risk / blocker</option><option value="action">Thing to follow up / action</option><option value="meeting">Manual meeting</option><option value="status">Status update</option></select></label>
+      <label>Title<input name="title" placeholder="Short title" /></label>
+      <label>Refer to meeting<select name="linkedTranscriptId"><option value="">General thread context</option><% v245Meetings.forEach(function(m){ %><option value="<%= m._id %>"><%= m.subject || 'Meeting' %> — <%= fmtTime(m.startDateTime) %></option><% }) %></select></label>
+      <label>Date / time<input type="datetime-local" name="occurredAt" /></label>
+      <div class="v166-people-picker" data-people-picker>
+        <label>People involved</label>
+        <input type="text" class="v166-people-search" list="v166PeopleList" placeholder="Type 3 letters, select a person…" />
+        <input type="hidden" name="people" class="v166-people-hidden" />
+        <div class="v166-people-chips"></div>
+      </div>
+      <label>Summary / details<textarea name="body" placeholder="What happened? What changed? What should be remembered? Paste rough bullets if needed."></textarea></label>
+      <label>Checklist of tasks<textarea name="checklist" placeholder="One task per line. Example:
+Confirm V2 gap list
+Send release scope to NK
+Follow up on architecture decision"></textarea></label>
+      <label>Thing to follow up / action owner<input name="ownerEmail" placeholder="Optional, mainly for actions" /></label>
+      <label>Next follow-up / due date<input type="date" name="dueDate" /></label>
+      <label>Status<input name="entryStatus" placeholder="Open / In progress / Done" /></label>
+      <label>Severity<select name="severity"><option value="">None</option><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select></label>
+      <label>Confidence<select name="confidence"><option value="">Not set</option><option>High</option><option>Medium</option><option>Low</option></select></label>
+      <label>Attach files / images<input type="file" name="files" multiple accept=".txt,.md,.pdf,.doc,.docx,.ppt,.pptx,image/*" /></label>
+      <label>Visibility<select name="visibility"><option value="thread">Visible to thread members</option><option value="private">Private to me</option><option value="org">Visible to org/admin later</option></select></label>
+      <button class="v5-primary" type="submit">Add Context</button>
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+  document.querySelectorAll('[data-modal-open]').forEach(btn=>btn.addEventListener('click',()=>{ var m=document.getElementById(btn.dataset.modalOpen); if(m){m.classList.add('open');m.setAttribute('aria-hidden','false');}}));
+  document.querySelectorAll('[data-modal-close]').forEach(btn=>btn.addEventListener('click',()=>{ var m=btn.closest('.v16-modal'); if(m){m.classList.remove('open');m.setAttribute('aria-hidden','true');}}));
+  document.querySelectorAll('.v16-modal').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m){m.classList.remove('open');m.setAttribute('aria-hidden','true');}}));
+})();
+</script>
+
+<script>
+(function(){
+  document.querySelectorAll('.js-ai-summary-form').forEach(form=>form.addEventListener('submit',()=>{
+    const btn=form.querySelector('.js-ai-summary-btn');
+    if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.innerHTML='<span class="v166-spinner"></span><span>Generating insight…</span>'; }
+    const card=form.closest('.v245-thread-head') || form.parentElement;
+    if(card){ var note=document.createElement('div'); note.className='v166-ai-progress'; note.textContent='Reading linked meetings, AI notes, context, risks and follow-ups…'; form.after(note); setTimeout(()=>{note.textContent='Building thread intelligence from the diary…'},900); }
+  }));
+})();
+</script>
+
+<script>
+(function initPeoplePickers(){
+  function valToEmail(v){ var m=String(v||'').match(/\(([^)@]+@[^)]+)\)/); return (m?m[1]:v).trim(); }
+  document.querySelectorAll('[data-people-picker]').forEach(box=>{
+    const input=box.querySelector('.v166-people-search'), hidden=box.querySelector('.v166-people-hidden'), chips=box.querySelector('.v166-people-chips');
+    let values=[];
+    function render(){ hidden.value=values.join(', '); chips.innerHTML=values.map(v=>`<span class="v166-chip">${v}<button type="button" data-v="${v.replace(/"/g,'&quot;')}">×</button></span>`).join(''); }
+    input.addEventListener('change',()=>{ var v=valToEmail(input.value); if(v && v.length>=3 && !values.includes(v)){values.push(v);render();} input.value=''; });
+    chips.addEventListener('click',e=>{ if(e.target.tagName==='BUTTON'){ values=values.filter(v=>v!==e.target.dataset.v); render(); } });
+  });
+})();
+</script>

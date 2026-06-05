@@ -1,0 +1,96 @@
+<% layout('layout') %>
+
+<h1>Update org details</h1>
+<p><strong>Org:</strong> <%= org.name %> (<%= org.slug %>)</p>
+
+<form method="POST" action="/org/settings" style="max-width:720px; margin-top:16px;">
+  <h3>Basics</h3>
+
+  <div style="margin:12px 0;">
+    <label><strong>Org name</strong></label><br/>
+    <input name="name" type="text" value="<%= org.name %>" required style="width:100%;padding:10px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label><strong>Org slug</strong></label><br/>
+    <input name="slug" type="text" value="<%= org.slug %>" required style="width:100%;padding:10px;" />
+    <small>Lowercase, no spaces (we’ll auto-clean).</small>
+  </div>
+
+  <div style="margin:12px 0;">
+    <label><strong>Allowed domains</strong></label><br/>
+    <input name="allowedDomains" type="text"
+           value="<%= (org.allowedDomains || []).join(', ') %>"
+           placeholder="example.com, example.org"
+           style="width:100%;padding:10px;" />
+    <small>Comma-separated. No @.</small>
+  </div>
+
+  <hr style="margin:18px 0;" />
+
+  <h3>Office 365</h3>
+
+  <div style="margin:12px 0;">
+    <label><strong>Tenant ID (tid)</strong></label><br/>
+    <input name="tenantId" type="text" value="<%= org.o365?.tenantId || '' %>"
+           placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+           style="width:100%;padding:10px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label>
+      <input type="checkbox" name="enforceTenantMatch" value="true"
+        <%= org.o365?.enforceTenantMatch ? 'checked' : '' %> />
+      Enforce tenant match (recommended)
+    </label>
+  </div>
+
+  <hr style="margin:18px 0;" />
+
+  <h3>Features</h3>
+
+  <div style="margin:12px 0;">
+    <label>
+      <input type="checkbox" name="checkTranscripts" value="true"
+        <%= org.features?.checkTranscripts ? 'checked' : '' %> />
+      Check transcripts
+    </label>
+  </div>
+
+  <div style="margin:12px 0;">
+    <label>
+      <input type="checkbox" name="debugTranscripts" value="true"
+        <%= org.features?.debugTranscripts ? 'checked' : '' %> />
+      Debug transcripts (only for troubleshooting)
+    </label>
+  </div>
+
+  <hr style="margin:18px 0;" />
+
+  <h3>Retention</h3>
+
+  <div style="margin:12px 0;">
+    <label><strong>Meeting retention (days)</strong></label><br/>
+    <input name="meetingDays" type="number" min="1"
+           value="<%= org.retention?.meetingDays ?? 90 %>"
+           style="width:220px;padding:10px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label><strong>Transcript retention (days)</strong></label><br/>
+    <input name="transcriptDays" type="number" min="1"
+           value="<%= org.retention?.transcriptDays ?? 30 %>"
+           style="width:220px;padding:10px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label>
+      <input type="checkbox" name="storeRawTranscript" value="true"
+        <%= org.retention?.storeRawTranscript ? 'checked' : '' %> />
+      Store raw transcript
+    </label>
+  </div>
+
+  <button type="submit" style="padding:10px 14px;">Save changes</button>
+  <a href="/org" style="margin-left:10px;">Cancel</a>
+</form>

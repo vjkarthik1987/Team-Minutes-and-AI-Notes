@@ -1,0 +1,82 @@
+<% layout('layout') %>
+<section class="v241-home-shell v247-home-shell v25-home-shell">
+  <div class="v241-home-head v247-home-head">
+    <div>
+      <span class="v247-kicker">✨ Intelligence cockpit</span>
+      <h1>Meeting Intelligence Home</h1>
+      <p class="muted">Threads carry the memory. Meetings add the evidence.</p>
+    </div>
+    <div class="v241-home-actions">
+      <a class="v20-secondary" href="/user/day-command">Open Day Command</a>
+      <a class="v20-secondary v242-calendar-refresh" href="/user/calendar?refresh=1">↻ Refresh calendar meetings</a>
+      <form method="POST" action="/user/executive-brief/regenerate"><button class="v20-primary" type="submit">Regenerate brief</button></form>
+    </div>
+  </div>
+
+  <% if (isFirstLogin && !user.transcriptOnboardingDismissedAt) { %>
+    <section class="v14-onboarding" id="v14Onboarding">
+      <div><strong>First login detected</strong><p>Load your available meeting transcripts into AI context. Once loading is done, this prompt will disappear.</p></div>
+      <div class="v14-onboarding-actions"><button id="v14StartLoad" class="v12-load-ai-btn" type="button">Load my transcripts now</button><button id="v14DismissOnboarding" class="v5-secondary" type="button">Dismiss</button></div>
+    </section>
+  <% } %>
+
+  <section class="v247-home-grid v25-two-section-home">
+    <article class="v241-panel v241-threads-panel v247-panel-pop">
+      <div class="v241-panel-head v247-panel-head-orange">
+        <div><h2>Threads</h2><p><%= (userThreads || []).length %> intelligence threads</p></div>
+        <a class="v241-mini-link" href="/user/threads">View all</a>
+      </div>
+      <div class="v241-scroll-list v247-thread-list">
+        <% if (!(userThreads || []).length) { %><div class="v241-empty">No threads yet. Create one from the Threads page to start building continuity.</div><% } %>
+        <% (userThreads || []).forEach(t => { var lastInsight = t.ai?.insight || t.ai?.executiveMemory || t.ai?.progressSummary || t.dailyDigest?.attentionToday || t.objective || t.desiredOutcome || 'No thread insight yet. Generate insight from the thread page.'; var score = Number(t.ai?.healthScore || 0); if (!score) { score = 6; } score = Math.max(1, Math.min(10, Math.round(score))); var healthText = t.ai?.healthLabel || (score<=3?'Critical':score<=5?'At Risk':score===6?'OK':score<=8?'Good':'Strong'); var healthClass = score===1?'darkred':score<=3?'red':score===4?'orange':score===5?'yellow':score<=7?'lightgreen':'green'; %>
+          <a class="v241-thread-card v247-thread-card v248-thread-card v248-health-<%= healthClass %>" href="/user/threads/<%= t._id %>">
+            <div class="v241-card-top">
+              <strong><%= t.name || 'Untitled thread' %></strong>
+              <span class="v247-status-pill"><%= t.status || 'Active' %></span>
+            </div>
+            <p class="v247-last-insight"><%= String(lastInsight || '').replace(/Intelligent Summary\s*-?/ig, '').replace(/[#*]/g, '').replace(/\s+-\s+/g,' ').replace(/\.{2,}/g,'.').slice(0, 380) %><%= String(lastInsight || '').length > 380 ? '…' : '' %></p>
+            <div class="v247-thread-core-row">
+              <span class="v247-health-dot v248-health-pill v248-health-<%= healthClass %>"><b><%= score %>/10</b> <%= healthText %></span>
+              <span><%= (t.meetingIds || []).length %> meetings</span>
+              <span><%= (t.entries || []).length %> diary</span>
+            </div>
+            <% if (t.keyDecisionsNeeded || t.keyGaps) { %>
+              <div class="v247-thread-flags">
+                <% if (t.keyDecisionsNeeded) { %><span>Decision needed</span><% } %>
+                <% if (t.keyGaps) { %><span>Gap visible</span><% } %>
+              </div>
+            <% } %>
+            <div class="v241-thread-meta"><span>Updated <%= t.updatedAt ? new Date(t.updatedAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day:'2-digit', month:'short' }) : 'recently' %></span><% if (t.ownerEmail) { %><span>Owner: <%= t.ownerEmail %></span><% } %></div>
+          </a>
+        <% }) %>
+      </div>
+    </article>
+
+    <article class="v241-panel v241-meetings-panel v247-panel-pop">
+      <div class="v241-panel-head v247-panel-head-blue">
+        <div><h2>Meetings</h2><p>Yesterday, today, and <%= tomorrowTabLabel || 'tomorrow' %></p></div>
+        <a class="v241-mini-link" href="/user/calendar">Calendar</a>
+      </div>
+      <div class="v241-tabs" role="tablist"><button class="v241-tab" data-tab="yesterday" type="button">Yesterday <span><%= (yesterdayMeetingCards || []).length %></span></button><button class="v241-tab active" data-tab="today" type="button">Today <span><%= (todayMeetingCards || []).length %></span></button><button class="v241-tab" data-tab="tomorrow" type="button"><%= tomorrowTabLabel || 'Tomorrow' %> <span><%= (tomorrowMeetingCards || []).length %></span></button></div>
+      <% var meetingBuckets = [ ['yesterday', yesterdayMeetingCards || []], ['today', todayMeetingCards || []], ['tomorrow', tomorrowMeetingCards || []] ]; %>
+      <% meetingBuckets.forEach(([key, list]) => { %>
+        <div class="v241-tab-pane <%= key === 'today' ? 'active' : '' %>" id="v241-tab-<%= key %>"><div class="v241-scroll-list meetings">
+          <% if (!list.length) { %><div class="v241-empty">No meetings found for this window.</div><% } %>
+          <% list.forEach(m => { %><div class="v241-meeting-card v247-meeting-card"><div class="v241-card-top"><strong><%= m.subject || 'Untitled meeting' %></strong><span><%= m._label || '' %></span></div><div class="v241-meeting-time js-local-time" data-iso="<%= m.startDateTime || '' %>"><%= m.startDateTime || '' %></div><div class="v241-thread-meta"><% if (m.hasTranscript) { %><a class="v2491-transcript-link" href="/user/transcript/saved/<%= m._id %>">Open transcript</a><% } %><% if (m.linkedContextCount) { %><span><%= m.linkedContextCount %> context items</span><% } %><% if (m.precedingContext) { %><span>Previous context</span><% } %></div></div><% }) %>
+        </div></div>
+      <% }) %>
+    </article>
+
+  </section>
+</section>
+
+<script>
+(function(){
+  function formatLocalTime(el){ const iso=el.getAttribute('data-iso'); if(!iso) return; const d=new Date(iso); if(isNaN(d.getTime())) return; el.textContent=d.toLocaleString(undefined,{weekday:'short',day:'2-digit',month:'short',hour:'numeric',minute:'2-digit',hour12:true}); }
+  document.querySelectorAll('.js-local-time').forEach(formatLocalTime);
+  document.querySelectorAll('.v241-tab').forEach(btn=>btn.addEventListener('click',()=>{ document.querySelectorAll('.v241-tab').forEach(b=>b.classList.remove('active')); document.querySelectorAll('.v241-tab-pane').forEach(p=>p.classList.remove('active')); btn.classList.add('active'); const pane=document.getElementById('v241-tab-'+btn.dataset.tab); if(pane) pane.classList.add('active'); }));
+  async function loadAll(btn){ const old=btn.textContent; btn.disabled=true; btn.textContent='Loading AI context…'; try{ var r=await fetch('/user/ai/load-all',{method:'POST'}); var d=await r.json(); btn.textContent=`Indexed ${d.processed||0}, skipped ${d.skipped||0}`; var box=document.getElementById('v14Onboarding'); if(box) box.remove(); setTimeout(()=>btn.textContent=old,2500); } catch(e){ btn.textContent='AI load failed'; setTimeout(()=>btn.textContent=old,2500); } finally{ setTimeout(()=>{btn.disabled=false;},800); } }
+  const start=document.getElementById('v14StartLoad'); if(start) start.addEventListener('click',()=>loadAll(start));
+  const dismiss=document.getElementById('v14DismissOnboarding'); if(dismiss) dismiss.addEventListener('click', async()=>{ try{ await fetch('/user/home/onboarding/dismiss',{method:'POST'}); }catch(e){} const box=document.getElementById('v14Onboarding'); if(box) box.remove(); });
+})();
+</script>

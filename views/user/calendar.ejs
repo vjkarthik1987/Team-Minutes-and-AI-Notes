@@ -1,0 +1,89 @@
+<% layout('layout') %>
+<%
+function fmtRange(s,e){ return s || ''; }
+function escAttr(s){ return String(s || '').replace(/'/g,'').replace(/"/g,''); }
+const events = allEvents || prevEvents || [];
+const future = futureEvents || [];
+const withT = events.filter(e=>e.hasTranscript);
+const withoutT = events.filter(e=>!e.hasTranscript);
+const day = new Date().getDay();
+const showMondayHint = day === 5;
+function aiLabel(ev){ if(!ev.hasTranscript) return 'Not loaded'; if(ev.aiIndexStatus === 'indexed') return 'Indexed'; if(ev.aiIndexStatus === 'processing') return 'Processing'; if(ev.aiIndexStatus === 'failed') return 'Index failed'; return 'Not indexed'; }
+function aiClass(ev){ if(!ev.hasTranscript) return ''; if(ev.aiIndexStatus === 'indexed') return 'indexed'; if(ev.aiIndexStatus === 'processing') return 'processing'; if(ev.aiIndexStatus === 'failed') return 'failed'; return 'pending'; }
+%>
+<section class="page-hero compact v9-tight-hero">
+  <div><div class="v3-kicker">Calendar</div><h1>Meetings & transcripts</h1><p><%= lastSyncedAt ? 'Last refreshed: '+lastSyncedAt : 'Cached calendar view' %></p></div>
+  <div class="page-head__right"><a id="refreshCalendarBtn" class="v5-secondary v9-refresh-btn" href="/user/calendar?refresh=1">↻ Refresh calendar</a></div>
+</section>
+<% if (indexed) { %><div class="v113-status ok">Meeting loaded into AI context. Chat should now be able to answer from it.</div><% } %>
+<% if (ragError) { %><div class="v113-status bad"><%= ragError %></div><% } %>
+<% if (showMondayHint) { %><div class="v9-friday-note">It is Friday — Monday meetings are worth preparing for. Use Tomorrow/Calendar context and Ask follow-up to prep early.</div><% } %>
+<div class="v8-tabs"><button data-tab="all" class="active">All <%= events.length %></button><button data-tab="with">With transcript <%= withT.length %></button><button data-tab="without">Without transcript <%= withoutT.length %></button><button data-tab="future" id="future">Future 5 days <%= future.length %></button></div>
+<% if (error) { %><div class="v8-result"><strong><%= error %></strong></div><% } %>
+<section class="v8-calendar-grid v9-calendar-grid">
+<% events.forEach(ev => { var tr=ev.transcripts&&ev.transcripts[0]; var safeId=String(ev.eventId||'').replace(/[^a-zA-Z0-9_-]/g,'_'); %>
+  <article class="v8-meeting-card v9-meeting-card v113-meeting-card" data-has="<%= ev.hasTranscript ? 'with' : 'without' %>">
+    <div class="v8-meeting-top">
+      <div><h2><%= ev.subject || '(no subject)' %></h2><p class="js-local-range" data-start="<%= ev.startDateTime || '' %>" data-end="<%= ev.endDateTime || '' %>"><%= fmtRange(ev.startDateTime, ev.endDateTime) %></p><small><%= ev.location || '' %></small></div>
+      <div class="v113-badge-stack"><span class="v8-badge <%= ev.hasTranscript ? 'ok' : '' %>"><%= ev.hasTranscript ? 'Transcript' : 'No transcript' %></span><span class="v113-index-badge <%= aiClass(ev) %>"><%= aiLabel(ev) %></span></div>
+    </div>
+    <div class="v113-primary-actions">
+      <% if (tr) { %><a class="v113-primary-link" href="/user/transcript/ensure/<%= tr.meetingId %>/<%= tr.transcriptId %>?eventId=<%= ev.eventId %>&subject=<%= encodeURIComponent(ev.subject || '') %>&start=<%= ev.startDateTime %>&end=<%= ev.endDateTime %>">Open transcript</a><% } %>
+      <% if (ev.hasTranscript) { %><form method="post" action="/user/calendar/<%= ev.eventId %>/load-ai"><button class="v113-ai-btn" type="submit"><%= ev.aiIndexStatus === 'indexed' ? 'Rebuild AI context' : 'Load to AI context' %></button></form><% } %>
+      <button class="v9-ask-btn" type="button" onclick="document.getElementById('v5Prompt').value='What should I follow up for <%= escAttr(ev.subject||'this meeting') %>?';document.getElementById('v5Prompt').focus();">Ask follow-up</button>
+      <button class="v113-more-btn" type="button" onclick="toggleBox('more-<%= safeId %>')">More</button>
+    </div>
+    <div id="more-<%= safeId %>" class="v8-inline-box v113-more-box">
+      <div class="v113-more-grid">
+        <button type="button" onclick="toggleBox('ctx-<%= safeId %>')">Add context notes</button>
+        <button type="button" onclick="toggleBox('ctxm-<%= safeId %>')">Add context meeting</button>
+        <button type="button" onclick="toggleBox('file-<%= safeId %>')">Attach files</button>
+        <button type="button" onclick="toggleBox('trans-<%= safeId %>')">Link transcript</button>
+        <button type="button" onclick="toggleBox('thread-<%= safeId %>')">Link thread</button>
+        <form method="post" action="/user/calendar/<%= ev.eventId %>/send-pack" onsubmit="return confirm('Send transcript/action pack to attendees?')"><button type="submit">Send pack</button></form>
+      </div>
+    </div>
+    <div id="thread-<%= safeId %>" class="v8-inline-box"><form method="post" action="/user/calendar/<%= ev.eventId %>/link-thread"><label>Connect to thread</label><select name="threadId"><option value="">No thread</option><% (threads || []).forEach(th=>{ %><option value="<%= th._id %>" <%= String(ev.linkedThreadId||'')===String(th._id)?'selected':'' %>><%= th.name %></option><% }) %></select><button class="v5-primary">Save thread link</button><a class="soft-link" href="/user/threads">Manage threads</a></form></div>
+    <div id="ctx-<%= safeId %>" class="v8-inline-box"><form method="post" action="/user/calendar/<%= ev.eventId %>/context"><input name="title" placeholder="Context title"/><textarea name="contextText" rows="4" placeholder="Add context notes"></textarea><input name="fileName" placeholder="File/link label"/><textarea name="fileText" rows="4" placeholder="Paste file text or notes"></textarea><button class="v5-primary">Save context</button></form></div>
+    <div id="ctxm-<%= safeId %>" class="v8-inline-box"><form method="post" action="/user/calendar/<%= ev.eventId %>/link-context-meeting"><input type="hidden" name="returnTo" value="/user/calendar"><label>Choose preceding/context meeting</label><select name="transcriptDocId" required><option value="">Select previous transcript</option><% (contextMeetingOptions || savedTranscripts || []).forEach(t=>{ %><option value="<%= t._id %>"><%= t.subject || 'Meeting' %> — <%= t.startDateTime || '' %></option><% }) %></select><button class="v5-primary">Link context meeting</button></form></div>
+    <div id="file-<%= safeId %>" class="v8-inline-box"><form method="post" action="/user/calendar/<%= ev.eventId %>/files" enctype="multipart/form-data"><input name="title" placeholder="Attachment title"/><input type="file" name="meetingFile" accept=".txt,.md,.pdf,.doc,.docx,.ppt,.pptx"/><textarea name="fileText" rows="4" placeholder="Optional: paste useful text from the file so AI can answer from it immediately"></textarea><button class="v5-primary">Attach file</button><small>TXT/MD text is indexed automatically. For PDF/DOC/PPT, paste key text for immediate AI answers.</small></form></div>
+    <div id="trans-<%= safeId %>" class="v8-inline-box"><form method="post" action="/user/calendar/<%= ev.eventId %>/manual-transcript"><textarea name="transcriptText" rows="8" required placeholder="Paste transcript text for this meeting"></textarea><button class="v5-primary">Attach transcript</button></form></div>
+  </article>
+<% }) %>
+
+<% if (future.length) { %>
+  <% future.forEach(ev => { var safeId=String(ev.eventId||'').replace(/[^a-zA-Z0-9_-]/g,'_'); %>
+    <article class="v8-meeting-card v9-meeting-card v113-meeting-card" data-has="future">
+      <div class="v8-meeting-top"><div><h2><%= ev.subject || '(no subject)' %></h2><p class="js-local-range" data-start="<%= ev.startDateTime || '' %>" data-end="<%= ev.endDateTime || '' %>"><%= fmtRange(ev.startDateTime, ev.endDateTime) %></p><small><%= ev.location || '' %></small><% if(ev.linkedThreadName){ %><small>Thread: <%= ev.linkedThreadName %></small><% } %></div><span class="v8-badge">Future</span></div>
+      <div class="v113-primary-actions">
+        <button type="button" onclick="toggleBox('thread-f-<%= safeId %>')">Link thread</button>
+        <button type="button" onclick="toggleBox('ctx-f-<%= safeId %>')">Add context notes</button>
+        <button type="button" onclick="toggleBox('ctxm-f-<%= safeId %>')">Add context meeting</button>
+        <button type="button" onclick="toggleBox('file-f-<%= safeId %>')">Attach files</button>
+        <button class="v9-ask-btn" type="button" onclick="document.getElementById('v5Prompt').value='What should I prepare for future meeting <%= escAttr(ev.subject||'this meeting') %>?';document.getElementById('v5Prompt').focus();">Ask follow-up</button>
+      </div>
+      <div id="thread-f-<%= safeId %>" class="v8-inline-box"><form method="post" action="/user/calendar/<%= ev.eventId %>/link-thread"><label>Connect to thread</label><select name="threadId"><option value="">No thread</option><% (threads || []).forEach(th=>{ %><option value="<%= th._id %>" <%= String(ev.linkedThreadId||'')===String(th._id)?'selected':'' %>><%= th.name %></option><% }) %></select><button class="v5-primary">Save thread link</button></form></div>
+      <div id="ctx-f-<%= safeId %>" class="v8-inline-box"><form method="post" action="/user/calendar/<%= ev.eventId %>/context"><input name="title" placeholder="Context title"/><textarea name="contextText" rows="4" placeholder="Add context notes"></textarea><button class="v5-primary">Save context</button></form></div>
+      <div id="ctxm-f-<%= safeId %>" class="v8-inline-box"><form method="post" action="/user/calendar/<%= ev.eventId %>/link-context-meeting"><input type="hidden" name="returnTo" value="/user/calendar#future"><label>Choose preceding/context meeting</label><select name="transcriptDocId" required><option value="">Select previous transcript</option><% (contextMeetingOptions || savedTranscripts || []).forEach(t=>{ %><option value="<%= t._id %>"><%= t.subject || 'Meeting' %> — <%= t.startDateTime || '' %></option><% }) %></select><button class="v5-primary">Link context meeting</button></form></div>
+      <div id="file-f-<%= safeId %>" class="v8-inline-box"><form method="post" action="/user/calendar/<%= ev.eventId %>/files" enctype="multipart/form-data"><input name="title" placeholder="Attachment title"/><input type="file" name="meetingFile" accept=".txt,.md,.pdf,.doc,.docx,.ppt,.pptx"/><textarea name="fileText" rows="4" placeholder="Optional: paste useful text from the file"></textarea><button class="v5-primary">Attach file</button></form></div>
+    </article>
+  <% }) %>
+<% } %>
+</section>
+<script>
+function toggleBox(id){document.querySelectorAll('.v8-inline-box').forEach(x=>{if(x.id!==id)x.style.display='none'});const e=document.getElementById(id);if(e)e.style.display=e.style.display==='block'?'none':'block'}
+function formatCalendarTimes(){
+  document.querySelectorAll('.js-local-range').forEach(el=>{
+    const s=el.dataset.start,e=el.dataset.end;
+    const a=new Date(s),b=new Date(e);
+    if(!isNaN(a.getTime())){
+      const first=a.toLocaleString(undefined,{weekday:'short',day:'2-digit',month:'short',hour:'numeric',minute:'2-digit',hour12:true});
+      const second=!isNaN(b.getTime())?' – '+b.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit',hour12:true}):'';
+      el.textContent=first+second;
+    }
+  });
+}
+formatCalendarTimes();
+document.querySelectorAll('.v8-tabs button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.v8-tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');const t=b.dataset.tab;document.querySelectorAll('.v8-meeting-card').forEach(c=>{c.style.display=(t==='all'||(t==='with'&&c.dataset.has==='with')||(t==='without'&&c.dataset.has==='without')||(t==='future'&&c.dataset.has==='future'))?'block':'none';});formatCalendarTimes();}));
+(function(){const btn=document.getElementById('refreshCalendarBtn'); if(!btn)return; var key='calendarRefreshRunning'; function setRun(v){btn.classList.toggle('is-running',!!v); if(v){localStorage.setItem(key,'1');}else{localStorage.removeItem(key);}} if(localStorage.getItem(key)==='1') btn.classList.add('is-running'); btn.addEventListener('click',()=>{setRun(true);}); window.addEventListener('pageshow',()=>{ if(location.search.includes('refresh=1')) setRun(true); else setRun(false); });})();
+</script>

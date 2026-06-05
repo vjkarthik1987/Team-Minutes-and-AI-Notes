@@ -1,0 +1,89 @@
+<% layout('layout') %>
+
+<div class="page-head v173-page-head">
+  <div>
+    <h1 class="title">Collaborators</h1>
+    <p class="muted">Manage assistants, delegates, and trusted collaborators who can help you capture context or actions when you add them to threads.</p>
+  </div>
+  <div class="v173-head-actions">
+    <a class="v5-secondary" href="/user/assistant">Open assistant workbench</a>
+    <a class="v5-secondary" href="/user/settings">Settings</a>
+  </div>
+</div>
+
+<section class="v173-collab-grid">
+  <section class="card v173-panel">
+    <div class="v173-card-title">
+      <div><h2>Your collaborators</h2><p class="muted">These people are your shortlist. Thread owners still decide where they can contribute.</p></div>
+    </div>
+    <% var collaborators = user.collaborators || []; %>
+    <% if (!collaborators.length) { %>
+      <div class="v173-empty"><strong>No collaborators yet.</strong><p>Add your assistant, PM, or delivery partner so they can be quickly added to threads and context flows.</p></div>
+    <% } %>
+    <div class="v173-collab-list">
+      <% collaborators.forEach(c => { %>
+        <article class="v173-person-row">
+          <div class="v173-avatar"><%= (c.name || c.email || '?').slice(0,1).toUpperCase() %></div>
+          <div class="v173-person-main">
+            <strong><%= c.name || c.email %></strong>
+            <small><%= c.email %> · <%= c.role || 'collaborator' %></small>
+            <p><%= c.canAddContext ? 'Can add context' : 'Context disabled' %><%= c.canAddActions ? ' · Can add actions' : '' %></p>
+          </div>
+          <div class="v173-row-actions">
+            <form method="POST" action="/user/settings/collaborators/remove">
+              <input type="hidden" name="returnTo" value="/user/collaborators" />
+              <input type="hidden" name="email" value="<%= c.email %>" />
+              <button class="v5-secondary danger" type="submit">Remove</button>
+            </form>
+          </div>
+        </article>
+      <% }) %>
+    </div>
+  </section>
+
+  <section class="card v173-panel">
+    <div class="v173-card-title"><div><h2>Add collaborator</h2><p class="muted">Search by name/email. Permissions here are defaults; thread access remains explicit.</p></div></div>
+    <form method="POST" action="/user/settings/collaborators" class="v16-form v173-form">
+      <input type="hidden" name="returnTo" value="/user/collaborators" />
+      <label>Email
+        <input name="email" list="v173OrgUsers" placeholder="Type name or email" required />
+      </label>
+      <datalist id="v173OrgUsers">
+        <% (users || []).forEach(u => { %><option value="<%= u.email %>"><%= u.name || u.email %></option><% }) %>
+      </datalist>
+      <label>Name<input name="name" placeholder="Optional display name" /></label>
+      <label>Relationship
+        <select name="role"><option value="assistant">Assistant</option><option value="delegate">Delegate</option><option value="collaborator">Collaborator</option></select>
+      </label>
+      <div class="v173-checks">
+        <label><input type="checkbox" name="canAddContext" checked /> Can add context</label>
+        <label><input type="checkbox" name="canAddActions" /> Can add action items</label>
+      </div>
+      <button class="v5-primary" type="submit">Save collaborator</button>
+    </form>
+  </section>
+</section>
+
+<section class="card v173-panel v173-how">
+  <h2>How collaborator access works</h2>
+  <div class="v173-how-grid">
+    <div><b>1</b><strong>Add trusted people</strong><p>Maintain your personal assistant/delegate list here.</p></div>
+    <div><b>2</b><strong>Add them to a thread</strong><p>On a thread, add them as contributor or viewer.</p></div>
+    <div><b>3</b><strong>They use Assistant work</strong><p>They can add context, notes, risks, actions, or escalations only where they have access.</p></div>
+  </div>
+</section>
+
+<% if ((delegatedBy || []).length) { %>
+<section class="card v173-panel">
+  <h2>People who added you</h2>
+  <div class="v173-collab-list">
+    <% delegatedBy.forEach(d => { %>
+      <article class="v173-person-row">
+        <div class="v173-avatar"><%= (d.owner.name || d.owner.email || '?').slice(0,1).toUpperCase() %></div>
+        <div class="v173-person-main"><strong><%= d.owner.name || d.owner.email %></strong><small><%= d.owner.email %> · you are listed as <%= d.role %></small></div>
+        <div class="v173-row-actions"><a class="v5-secondary" href="/user/assistant">Contribute</a></div>
+      </article>
+    <% }) %>
+  </div>
+</section>
+<% } %>

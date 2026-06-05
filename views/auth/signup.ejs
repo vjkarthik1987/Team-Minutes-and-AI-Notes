@@ -1,0 +1,51 @@
+<% layout('layout') %>
+
+<h1>Org signup</h1>
+
+<form method="POST" action="/auth/signup" style="max-width:520px;">
+  <h3>Organization</h3>
+
+  <div style="margin:12px 0;">
+    <label><strong>Org name</strong></label><br/>
+    <input name="name" type="text" required style="width:100%;padding:10px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label><strong>Org slug</strong></label><br/>
+    <input name="slug" type="text" required placeholder="suntec"
+           style="width:100%;padding:10px;" />
+    <small>Lowercase, no spaces (we’ll auto-clean).</small>
+  </div>
+
+  <div style="margin:12px 0;">
+    <label><strong>Allowed domains</strong></label><br/>
+    <input name="allowedDomains" type="text" required
+           placeholder="suntecgroup.com, suntecsbs.com"
+           style="width:100%;padding:10px;" />
+    <small>Comma-separated domains (no @).</small>
+  </div>
+
+  <hr style="margin:18px 0;" />
+
+  <h3>Org login (local)</h3>
+
+  <div style="margin:12px 0;">
+    <label><strong>Org login email</strong></label><br/>
+    <input name="loginEmail" type="email" required
+           placeholder="admin@suntecgroup.com"
+           style="width:100%;padding:10px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label><strong>Password</strong></label><br/>
+    <input name="password" type="password" minlength="8" required
+           style="width:100%;padding:10px;" />
+    <small>Min 8 characters.</small>
+  </div>
+
+  <button type="submit" style="padding:10px 14px;">Create org</button>
+</form>
+
+<p style="margin-top:16px;">
+  Already have an org? <a href="/auth/login">Log in</a>
+</p>

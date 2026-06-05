@@ -1,0 +1,16 @@
+<% layout('layout') %>
+<div class="page-head">
+  <div><h1 class="title">People Intelligence</h1><p class="muted">Ownership, blockers, follow-ups, aliases and execution load across the organisation.</p></div>
+  <form method="POST" action="/user/people/refresh"><button class="v5-primary">Refresh people signals</button></form>
+</div>
+<form method="GET" action="/user/people" class="v22-search"><input name="q" value="<%= q || '' %>" placeholder="Search people, aliases, email…"><button class="v5-secondary">Search</button></form>
+<section class="v22-people-grid">
+  <% (people||[]).forEach(p=>{ %>
+    <article class="card v22-person-card">
+      <div class="v22-person-head"><div><h2><a href="/user/people/<%= encodeURIComponent(p.email) %>"><%= p.name || p.email %></a></h2><p class="muted"><%= p.email %></p></div><strong><%= p.loadScore || 0 %></strong></div>
+      <div class="v22-mini-stats"><span><b><%= p.ownedThreads.length %></b> owns</span><span><b><%= p.openActions %></b> open</span><span><b><%= p.waitingActions %></b> waiting</span><span><b><%= p.overdueActions %></b> overdue</span></div>
+      <% if((p.aliases||[]).length){ %><p class="muted">Aliases: <%= p.aliases.join(', ') %></p><% } %>
+      <% if((p.signals||[]).length){ %><p><strong>Latest:</strong> <%= p.signals[0].title %></p><% } %>
+    </article>
+  <% }) %>
+</section>

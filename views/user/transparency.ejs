@@ -1,0 +1,54 @@
+<% layout('layout') %>
+<section class="v14-transparency">
+  <div class="page-head">
+    <div>
+      <h1 class="title">AI & Technology Transparency</h1>
+      <p class="muted">What models, stack, and safeguards this workspace uses.</p>
+    </div>
+  </div>
+
+  <div class="v14-trans-grid">
+    <article class="card">
+      <h2>AI models</h2>
+      <table class="v8-table">
+        <tbody>
+          <tr><th>Default model</th><td><%= modelName %></td></tr>
+          <tr><th>Summary model</th><td><%= summaryModel %></td></tr>
+          <tr><th>Action extraction model</th><td><%= actionModel %></td></tr>
+          <tr><th>Thread intelligence model</th><td><%= threadModel %></td></tr>
+        </tbody>
+      </table>
+      <p class="muted">Model names are read from environment variables, so admins can change them without code changes.</p>
+    </article>
+
+    <article class="card">
+      <h2>Core tech stack</h2>
+      <ul class="v14-tech-list">
+        <li>Node.js + Express server-rendered application</li>
+        <li>MongoDB + Mongoose for meeting, transcript, action, and thread data</li>
+        <li>EJS templates for UI</li>
+        <li>Microsoft Graph for calendar/transcript integration</li>
+        <li>OpenAI API for summaries, answers, action extraction, and thread analysis</li>
+      </ul>
+    </article>
+
+    <article class="card">
+      <h2>Grounding rules</h2>
+      <ul class="v14-tech-list">
+        <li>Chat answers should use accessible transcript/context only.</li>
+        <li>When a strong meeting match is found, the answer is generated from that meeting first instead of searching everywhere.</li>
+        <li>Transcripts are indexed once and shared across eligible attendees through ACLs.</li>
+        <li>Action items are generated once per transcript to avoid duplicates.</li>
+      </ul>
+    </article>
+
+    <article class="card">
+      <h2>Data boundaries</h2>
+      <ul class="v14-tech-list">
+        <li>Users see only meetings/transcripts they are allowed to access.</li>
+        <li>Transcript ACLs include attendee/organizer access where available.</li>
+        <li>Login logs are kept for admin visibility and audit purposes.</li>
+      </ul>
+    </article>
+  </div>
+</section>

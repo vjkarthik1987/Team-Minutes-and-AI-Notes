@@ -1,0 +1,138 @@
+<% layout('layout') %>
+
+<div class="page-head v173-page-head">
+  <div>
+    <h1 class="title">Assistant workbench</h1>
+    <p class="muted">Everything where you can help someone else: contribute context, add actions, or escalate risks on threads where you are a contributor.</p>
+  </div>
+  <div class="v173-head-actions"><a class="v5-secondary" href="/user/collaborators">Collaborators</a></div>
+</div>
+
+<section class="v173-assistant-hero card">
+  <div>
+    <small>Delegated by</small>
+    <strong><%= delegatedBy.length %></strong>
+    <span>people</span>
+  </div>
+  <div>
+    <small>Contributor threads</small>
+    <strong><%= contributorThreads.length %></strong>
+    <span>active</span>
+  </div>
+  <div>
+    <small>Assigned actions</small>
+    <strong><%= assignedActions.length %></strong>
+    <span>open / in-progress</span>
+  </div>
+</section>
+
+<% if (!delegatedBy.length && !contributorThreads.length && !assignedActions.length) { %>
+<section class="card v173-panel v173-empty-state">
+  <h2>No assistant work yet</h2>
+  <p class="muted">When a CEO/thread owner adds you as a collaborator or contributor, the work will appear here.</p>
+  <a class="v5-secondary" href="/user/collaborators">Manage your own collaborators</a>
+</section>
+<% } %>
+
+
+<% if (delegatedBy.length) { %>
+<section class="card v173-panel v174-behalf-box">
+  <h2>Add note on someone’s behalf</h2>
+  <p class="muted">Use this when you are acting as an assistant/collaborator. The note is saved into memory with the owner in the ACL and a clear audit trail that you added it on their behalf.</p>
+  <form method="POST" action="/user/assistant/notes" class="v174-behalf-grid">
+    <label>For
+      <select name="onBehalfOfEmail" required>
+        <% delegatedBy.forEach(d => { %><option value="<%= d.owner.email %>"><%= d.owner.name || d.owner.email %> — <%= d.role %></option><% }) %>
+      </select>
+    </label>
+    <label>Type
+      <select name="noteType">
+        <option value="general">General note</option>
+        <option value="call">Call note</option>
+        <option value="manual_meeting">Manual meeting</option>
+        <option value="personal_note">Memory/reminder for them</option>
+      </select>
+    </label>
+    <label>Title<input name="title" placeholder="e.g. Call with Pramod on release risk" /></label>
+    <label>Date/time<input name="occurredAt" type="datetime-local" /></label>
+    <label class="full">People involved<input name="people" placeholder="Names or emails, comma separated" /></label>
+    <label class="full">Note<textarea name="note" rows="4" placeholder="Capture what changed, who owns what, and what needs attention." required></textarea></label>
+    <input type="hidden" name="returnTo" value="/user/assistant" />
+    <div class="full"><button class="v5-primary" type="submit">Save note on their behalf</button><p class="v174-small-note">This will show as added by you on behalf of the selected person.</p></div>
+  </form>
+</section>
+<% } %>
+
+<% if (delegatedBy.length) { %>
+<section class="card v173-panel">
+  <h2>You are a collaborator for</h2>
+  <div class="v173-collab-list">
+    <% delegatedBy.forEach(d => { %>
+      <article class="v173-person-row">
+        <div class="v173-avatar"><%= (d.owner.name || d.owner.email || '?').slice(0,1).toUpperCase() %></div>
+        <div class="v173-person-main"><strong><%= d.owner.name || d.owner.email %></strong><small><%= d.owner.email %> · <%= d.role %></small><p><%= d.canAddContext ? 'Context allowed' : 'Context disabled' %><%= d.canAddActions ? ' · Actions allowed' : '' %></p></div>
+      </article>
+    <% }) %>
+  </div>
+</section>
+<% } %>
+
+<section class="card v173-panel">
+  <div class="v173-card-title"><div><h2>Threads you can contribute to</h2><p class="muted">Use these to add notes, call context, risks, decisions, actions, or escalations.</p></div></div>
+  <% if (!contributorThreads.length) { %><p class="muted">No contributor threads yet.</p><% } %>
+  <div class="v173-thread-list">
+    <% contributorThreads.forEach(t => { %>
+      <article class="v173-thread-row">
+        <div>
+          <a href="/user/threads/<%= t._id %>"><strong><%= t.name %></strong></a>
+          <small><%= t.status %> · Owner: <%= t.ownerEmail || 'Unknown' %> · Updated <%= fmtTime(t.updatedAt) %></small>
+          <p><%= t.objective || t.ai?.progressSummary || 'No outcome yet.' %></p>
+        </div>
+        <div class="v173-row-actions">
+          <button class="v5-secondary" type="button" data-v173-open="ctx-<%= t._id %>">Add context</button>
+          <button class="v5-secondary danger-soft" type="button" data-v173-open="esc-<%= t._id %>">Escalate</button>
+        </div>
+      </article>
+      <form id="ctx-<%= t._id %>" method="POST" action="/user/threads/<%= t._id %>/entry" class="v173-inline-form">
+        <input type="hidden" name="kind" value="note" />
+        <label>Context title<input name="title" placeholder="Call with X / decision from today" /></label>
+        <label>Context<textarea name="body" rows="3" placeholder="What changed? What should the owner know?"></textarea></label>
+        <label>People<input name="people" placeholder="Type emails/names separated by comma" /></label>
+        <button class="v5-primary" type="submit">Add context</button>
+      </form>
+      <form id="esc-<%= t._id %>" method="POST" action="/user/threads/<%= t._id %>/entry" class="v173-inline-form">
+        <input type="hidden" name="kind" value="risk" />
+        <input type="hidden" name="severity" value="High" />
+        <label>Escalation title<input name="title" placeholder="What needs owner attention?" /></label>
+        <label>Why this needs attention<textarea name="body" rows="3" placeholder="Risk, blocker, owner, deadline, impact"></textarea></label>
+        <label>People<input name="people" placeholder="Who is involved?" /></label>
+        <button class="v5-primary danger" type="submit">Escalate to thread owner</button>
+      </form>
+    <% }) %>
+  </div>
+</section>
+
+<section class="card v173-panel">
+  <h2>Your delegated action items</h2>
+  <% if (!assignedActions.length) { %><p class="muted">No open assigned actions.</p><% } %>
+  <div class="v173-action-list">
+    <% assignedActions.forEach(a => { %>
+      <article class="v173-action-row">
+        <div><strong><%= a.title %></strong><small><%= a.meetingSubject || 'General' %> · Due <%= a.dueDate || 'Unclear' %> · <%= a.status %></small><p><%= a.description || a.evidence || '' %></p></div>
+        <div class="v173-row-actions"><a class="v5-secondary" href="/user/actions">Open actions</a></div>
+      </article>
+    <% }) %>
+  </div>
+</section>
+
+<script>
+(function(){
+  document.querySelectorAll('[data-v173-open]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const id=btn.getAttribute('data-v173-open'); var el=document.getElementById(id); if(!el) return;
+      document.querySelectorAll('.v173-inline-form').forEach(f=>{ if(f!==el) f.classList.remove('open'); });
+      el.classList.toggle('open');
+    });
+  });
+})();
+</script>

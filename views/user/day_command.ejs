@@ -1,0 +1,166 @@
+<% layout('layout') %>
+<section class="v14-home-shell v23-day-command">
+  <div class="v10-home-head">
+    <div>
+      <h1>Day Command</h1>
+      <p class="muted">Today, tomorrow, preparation context, and immediate action pressure in one execution page.</p>
+    </div>
+    <div class="v12-home-actions"><a class="v5-secondary" href="/user/home">Back to executive brief</a></div>
+  </div>
+  <datalist id="contextMeetingSearchList">
+    <% (contextMeetingOptions || []).forEach(t=>{ %>
+      <option value="<%= (t.searchLabel || t.subject || 'Meeting') %> [<%= t._id %>]">
+    <% }) %>
+  </datalist>
+
+  <section class="v14-today-grid v162-home-grid">
+    <div class="v14-panel v14-meetings-col">
+      <div class="v14-panel-head">
+        <h2>Today & tomorrow</h2>
+        <a href="/user/calendar">Open calendar</a>
+      </div>
+      <% var combined = (combinedMeetings || []); %>
+      <% if (!combined.length) { %><div class="v10-empty">No cached meetings today or tomorrow.</div><% } %>
+      <% combined.forEach((m, idx)=>{ var safeId='homeCtx'+idx; var linkedModal='linkedCtx'+idx; var linked = [...(m.precedingContext ? [m.precedingContext] : []), ...(m.linkedContexts || [])]; %>
+        <article class="v14-meeting-mini v162-meeting-mini <%= /\b(daily|weekly|monthly|recurring|sync|catch up|catch-up)\b/i.test(m.subject||'') || m.linkedThreadId ? 'v165-recurring-meeting' : '' %>">
+          <% if(m.linkedContextCount){ %>
+            <button class="v162-context-badge" type="button" onclick="document.getElementById('<%= linkedModal %>').classList.add('open')" title="Linked context"><%= m.linkedContextCount %></button>
+          <% } %>
+          <span class="v12-day-pill"><%= m._label %></span>
+          <strong><%= m.subject || '(no subject)' %></strong>
+          <small class="js-local-time" data-iso="<%= m.startDateTime || '' %>"><%= m.startDateTime || '' %></small>
+          <% if(m.precedingSubject){ %><p>Context: <%= m.precedingSubject %></p><% } %>
+          <% if(m.linkedContextCount){ %><p><%= m.linkedContextCount %> linked context item(s)</p><% } %>
+          <div class="v141-mini-actions">
+            <button class="v11-follow-btn" type="button" onclick="document.getElementById('v5Prompt').value='What is the follow-up context and prep for <%= String(m.subject||'this meeting').replace(/'/g,'') %>?';document.getElementById('v5Prompt').focus();">Ask prep</button>
+            <button class="v141-link-btn" type="button" onclick="toggleHomeBox('<%= safeId %>')">Add context meeting</button>
+          </div>
+          <div id="<%= safeId %>" class="v141-home-context-box">
+            <form method="post" action="/user/calendar/<%= m.eventId %>/link-context-meeting">
+              <input type="hidden" name="returnTo" value="/user/day-command">
+              <label>Search previous meeting</label>
+              <input class="v162-search-input" name="transcriptSearch" list="contextMeetingSearchList" placeholder="Type meeting name, e.g. Commerz ING…" required>
+              <button class="v5-primary" type="submit">Link</button>
+            </form>
+          </div>
+        </article>
+        <div id="<%= linkedModal %>" class="v11-modal"><div class="v11-modal-card"><div class="v10-pop-head"><strong>Linked context — <%= m.subject || 'Meeting' %></strong><button type="button" onclick="document.getElementById('<%= linkedModal %>').classList.remove('open')">×</button></div>
+          <% if(!linked.length){ %><div class="v10-empty">No linked context yet.</div><% } %>
+          <% linked.forEach(c=>{ %><article class="v162-linked-item"><strong><%= c.title %></strong><small><%= c.sourceType %> <%= c.createdAt ? '· ' + c.createdAt : '' %></small><p><%= c.preview || 'No preview available.' %></p></article><% }) %>
+        </div></div>
+      <% }) %>
+    </div>
+
+    <div class="v14-panel v14-prep-col v141-prep-col v162-prep-col">
+      <div class="v14-panel-head">
+        <h2>Preparation</h2>
+        <div class="v162-tabs">
+          <button class="v162-tab active" type="button" data-tab="today">Today</button>
+          <button class="v162-tab" type="button" data-tab="tomorrow">Tomorrow</button>
+        </div>
+      </div>
+
+      <div id="prepTabToday" class="v162-tab-pane active">
+        <article class="v14-prep-card v141-summary-card v162-summary-full">
+          <div class="v163-summary-head"><strong>Today’s preparation summary</strong><button class="v163-copy-btn" type="button" data-copy-target="todayPrepSummaryText">Copy</button></div>
+          <pre id="todayPrepSummaryText" class="v141-prep-full"><%= todaysPrepSummary %></pre>
+        </article>
+        <% if (!(prepItemsToday || []).length) { %><div class="v10-empty">No preparation context yet.</div><% } %>
+        <% (prepItemsToday || []).forEach((p, idx)=>{ var modalId='prepTodayModal'+idx; %>
+          <article class="v14-prep-card">
+            <strong><%= p.subject %></strong>
+            <small><span class="js-local-time" data-iso="<%= p.startDateTime || '' %>"><%= p.prettyTime || p.startDateTime || '' %></span> · <%= p.linkedContextCount || p.previousCount || 0 %> linked</small>
+            <% if(p.previousSubject){ %><small>Based on: <%= p.previousSubject %></small><% } %>
+            <p><%= p.cosPrep || p.prep %></p>
+            <button class="v141-link-btn" type="button" onclick="document.getElementById('<%= modalId %>').classList.add('open')">View full prep</button>
+          </article>
+          <div id="<%= modalId %>" class="v11-modal"><div class="v11-modal-card"><div class="v10-pop-head"><strong><%= p.subject %> — preparation</strong><button type="button" onclick="document.getElementById('<%= modalId %>').classList.remove('open')">×</button></div><pre class="v141-prep-full"><%= p.cosPrep || p.fullPrep %></pre></div></div>
+        <% }) %>
+      </div>
+
+      <div id="prepTabTomorrow" class="v162-tab-pane">
+        <article class="v14-prep-card v141-summary-card v162-summary-full">
+          <div class="v163-summary-head"><strong>Tomorrow’s preparation summary</strong><button class="v163-copy-btn" type="button" data-copy-target="tomorrowPrepSummaryText">Copy</button></div>
+          <pre id="tomorrowPrepSummaryText" class="v141-prep-full"><%= tomorrowsPrepSummary %></pre>
+        </article>
+        <% if (!(prepItemsTomorrow || []).length) { %><div class="v10-empty">No preparation context yet.</div><% } %>
+        <% (prepItemsTomorrow || []).forEach((p, idx)=>{ var modalId='prepTomorrowModal'+idx; %>
+          <article class="v14-prep-card">
+            <strong><%= p.subject %></strong>
+            <small><span class="js-local-time" data-iso="<%= p.startDateTime || '' %>"><%= p.prettyTime || p.startDateTime || '' %></span> · <%= p.linkedContextCount || p.previousCount || 0 %> linked</small>
+            <% if(p.previousSubject){ %><small>Based on: <%= p.previousSubject %></small><% } %>
+            <p><%= p.cosPrep || p.prep %></p>
+            <button class="v141-link-btn" type="button" onclick="document.getElementById('<%= modalId %>').classList.add('open')">View full prep</button>
+          </article>
+          <div id="<%= modalId %>" class="v11-modal"><div class="v11-modal-card"><div class="v10-pop-head"><strong><%= p.subject %> — preparation</strong><button type="button" onclick="document.getElementById('<%= modalId %>').classList.remove('open')">×</button></div><pre class="v141-prep-full"><%= p.cosPrep || p.fullPrep %></pre></div></div>
+        <% }) %>
+      </div>
+    </div>
+
+    <div class="v14-panel v14-actions-col">
+      <div class="v14-panel-head">
+        <h2>Actions</h2>
+        <a href="/user/actions">View all</a>
+      </div>
+      <% if (todayActionItems && todayActionItems.length) { %>
+        <h3>Due today</h3>
+        <% todayActionItems.slice(0,6).forEach(a=>{ %>
+          <article class="v14-action-card urgent">
+            <strong><%= a.title %></strong>
+            <small><%= a.meetingSubject || 'General' %></small>
+            <span><%= a.status %> · <%= a.priority || 'Unclear' %></span>
+          </article>
+        <% }) %>
+      <% } %>
+      <h3>Pending against you</h3>
+      <% if (!pendingActions.length) { %><div class="v10-empty">No pending action items.</div><% } %>
+      <% pendingActions.slice(0,8).forEach(a=>{ %>
+        <article class="v14-action-card">
+          <strong><%= a.title %></strong>
+          <small><%= a.meetingSubject || 'General' %></small>
+          <span>Due: <%= a.dueDate || 'Unclear' %></span>
+          <form method="POST" action="/user/actions/<%= a._id %>/status"><input type="hidden" name="status" value="Done"><button class="v11-close-mini" type="submit">Close</button></form>
+        </article>
+      <% }) %>
+    </div>
+  </section>
+
+
+  <% if (mondayMeetings && mondayMeetings.length) { %><div class="v10-monday-strip"><strong>Monday prep</strong><span><%= mondayMeetings.length %> meeting(s) visible because it is Friday.</span></div><% } %>
+</section>
+
+<script>
+(function(){
+  function formatLocalTime(el){
+    const iso=el.getAttribute('data-iso'); if(!iso) return;
+    const d=new Date(iso); if(isNaN(d.getTime())) return;
+    el.textContent=d.toLocaleString(undefined,{weekday:'short',day:'2-digit',month:'short',hour:'numeric',minute:'2-digit',hour12:true});
+  }
+  document.querySelectorAll('.js-local-time').forEach(formatLocalTime);
+  window.toggleHomeBox=function(id){document.querySelectorAll('.v141-home-context-box').forEach(x=>{if(x.id!==id)x.style.display='none'});const e=document.getElementById(id);if(e)e.style.display=e.style.display==='block'?'none':'block'};
+  document.querySelectorAll('.v162-tab').forEach(btn=>btn.addEventListener('click',()=>{
+    document.querySelectorAll('.v162-tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.v162-tab-pane').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    const pane=document.getElementById(btn.dataset.tab==='tomorrow'?'prepTabTomorrow':'prepTabToday');
+    if(pane) pane.classList.add('active');
+  }));
+  document.querySelectorAll('.v163-copy-btn').forEach(btn=>btn.addEventListener('click', async()=>{
+    const target=document.getElementById(btn.dataset.copyTarget); if(!target) return;
+    const old=btn.textContent;
+    try{ await navigator.clipboard.writeText(target.innerText || target.textContent || ''); btn.textContent='Copied'; }
+    catch(e){ var range=document.createRange(); range.selectNodeContents(target); var sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(range); try{document.execCommand('copy'); btn.textContent='Copied';}catch(_){btn.textContent='Select text';} sel.removeAllRanges(); }
+    setTimeout(()=>btn.textContent=old,1400);
+  }));
+  async function loadAll(btn){
+    const old=btn.textContent; btn.disabled=true; btn.textContent='Loading AI context…';
+    try{ var r=await fetch('/user/ai/load-all',{method:'POST'}); var d=await r.json(); btn.textContent=`Indexed ${d.processed||0}, skipped ${d.skipped||0}`; var box=document.getElementById('v14Onboarding'); if(box) box.remove(); setTimeout(()=>btn.textContent=old,2500); }
+    catch(e){ btn.textContent='AI load failed'; setTimeout(()=>btn.textContent=old,2500); }
+    finally{ setTimeout(()=>{btn.disabled=false;},800); }
+  }
+  const start=document.getElementById('v14StartLoad'); if(start) start.addEventListener('click',()=>loadAll(start));
+  const dismiss=document.getElementById('v14DismissOnboarding');
+  if(dismiss) dismiss.addEventListener('click', async()=>{ try{ await fetch('/user/home/onboarding/dismiss',{method:'POST'}); }catch(e){} const box=document.getElementById('v14Onboarding'); if(box) box.remove(); });
+})();
+</script>
+

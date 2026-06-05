@@ -1,0 +1,39 @@
+<% layout('layout') %>
+
+<h1>Manage users</h1>
+<p><strong>Org:</strong> <%= org.name %></p>
+
+<p style="margin: 12px 0;">
+  <a href="/org/users/new">+ Add user</a>
+  &nbsp;|&nbsp;
+  <a href="/org/users/bulk">Bulk upload CSV</a>
+  &nbsp;|&nbsp;
+  <a href="/org">Back to dashboard</a>
+</p>
+
+<% if (!users || users.length === 0) { %>
+  <p>No users yet.</p>
+<% } else { %>
+  <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; max-width:900px;">
+    <thead>
+      <tr>
+        <th align="left">Name</th>
+        <th align="left">Email</th>
+        <th align="left">Role</th>
+        <th align="left">Status</th>
+        <th align="left">Permissions</th><th align="left">Created</th><th align="left">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% users.forEach(u => { %>
+        <tr>
+          <td><%= u.name || '-' %></td>
+          <td><%= u.email %></td>
+          <td><%= ({ general_user: 'General User', ceo: 'CEO', super_admin: 'Super Admin' }[u.role] || u.role) %></td>
+          <td><%= u.status %></td>
+          <td><%= [u.permissions?.canAssignActions ? 'Assign actions' : '', u.permissions?.canAssignFollowups ? 'Follow-ups' : '', u.permissions?.canViewAuditLog ? 'Audit' : ''].filter(Boolean).join(', ') || '-' %></td><td><%= new Date(u.createdAt).toLocaleString() %></td><td><a href="/org/users/<%= u._id %>/edit">Edit</a></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+<% } %>

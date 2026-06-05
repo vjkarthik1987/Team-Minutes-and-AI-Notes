@@ -1,0 +1,29 @@
+<% layout('layout') %>
+<section class="page-hero compact v9-tight-hero">
+  <div><div class="v3-kicker">Summaries</div><h1>CEO summaries</h1><p>Generate weekly, monthly, or custom-period summaries for a specific user.</p></div>
+</section>
+<section class="v9-summary-workbench">
+  <aside class="v9-summary-controls">
+    <form method="POST" action="/user/summaries/generate" id="summaryForm">
+      <label>User</label>
+      <select name="userId" required>
+        <% users.forEach(u => { %><option value="<%= u._id %>" <%= String(selectedUserId||'')===String(u._id)?'selected':'' %>><%= u.name || u.email %> — <%= u.email %></option><% }) %>
+      </select>
+      <div class="v9-summary-buttons">
+        <button name="type" value="weekly" type="submit">Generate Weekly Summary</button>
+        <button name="type" value="monthly" type="submit">Generate Monthly Summary</button>
+        <button type="button" onclick="document.getElementById('customPeriod').showModal()">Summary for Custom Period</button>
+      </div>
+      <dialog id="customPeriod" class="v9-dialog"><h2>Custom period</h2><label>From</label><input name="from" type="date" value="<%= selectedFrom || '' %>"><label>To</label><input name="to" type="date" value="<%= selectedTo || '' %>"><menu><button type="button" onclick="customPeriod.close()">Cancel</button><button name="type" value="custom" type="submit">Generate</button></menu></dialog>
+    </form>
+    <div class="v9-recent-list"><h3>Recent summaries</h3><% latest.forEach(d => { %><a href="/user/summaries/<%= d._id %>/download.doc"><%= d.subject %><small><%= d.createdAt %></small></a><% }) %></div>
+  </aside>
+  <main class="v9-summary-output">
+    <% if (generated) { %>
+      <div class="v9-output-toolbar"><strong><%= generated.subject %></strong><div><button type="button" onclick="navigator.clipboard.writeText(document.getElementById('summaryText').innerText);this.innerText='Copied'">Copy</button><a href="/user/summaries/<%= generated._id %>/download.doc">Word</a><a href="/user/summaries/<%= generated._id %>/download.pdf">PDF</a></div></div>
+      <pre id="summaryText"><%= generated.body %></pre>
+    <% } else { %>
+      <div class="empty-state"><div class="empty-orb">📄</div><h2>Choose a user and generate a summary</h2><p>The generated summary appears here with copy, Word and PDF options.</p></div>
+    <% } %>
+  </main>
+</section>

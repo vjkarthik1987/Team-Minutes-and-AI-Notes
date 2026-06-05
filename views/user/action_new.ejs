@@ -1,0 +1,14 @@
+<% layout('layout') %>
+<section class="page-hero compact"><div><div class="v3-kicker">Action management</div><h1>New action item</h1><p>Create a meeting-linked or independent follow-up. Leave owner blank to let the system infer the person.</p></div><a class="v5-secondary" href="/user/actions">Back to actions</a></section>
+<section class="v8-form-card">
+<form method="POST" action="/user/actions" class="v8-action-form">
+  <label>Action title<input name="title" required placeholder="e.g., Anand to send revised pricing deck"/></label>
+  <label>Details<textarea name="description" rows="5" placeholder="Context, expectation, evidence"></textarea></label>
+  <div class="v8-two"><label>Owner<select name="ownerEmail"><option value="">Auto-detect / unassigned</option><% assignableUsers.forEach(u => { %><option value="<%= u.email %>"><%= u.name || u.email %> — <%= u.email %></option><% }) %></select></label><label>Priority<select name="priority"><option>Medium</option><option>High</option><option>Low</option><option>Unclear</option></select></label></div>
+  <label>Link to meeting<select name="transcriptDocId"><option value="">Not linked to a meeting</option><% meetings.forEach(m => { %><option value="<%= m._id %>"><%= m.subject || 'Meeting' %> — <%= m.startDateTime || '' %></option><% }) %></select></label>
+  <div class="v8-two"><label>Due date<input type="date" name="dueDateISO"/></label><label>Repeat every<input type="number" name="interval" min="1" value="1"/></label></div>
+  <label class="inline-check"><input type="checkbox" name="recurrenceEnabled"/> Make this recurring</label>
+  <label>Frequency<select name="frequency"><option value="weekly">Weekly</option><option value="daily">Daily</option><option value="monthly">Monthly</option></select></label>
+  <button class="v5-primary" type="submit">Create action item</button>
+</form>
+</section>

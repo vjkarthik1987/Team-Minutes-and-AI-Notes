@@ -1,0 +1,12 @@
+<% layout('layout') %>
+<h1>Edit user</h1>
+<form method="POST" action="/org/users/<%= editUser._id %>/edit" class="admin-form">
+  <label>Name<input name="name" value="<%= editUser.name || '' %>" /></label>
+  <label>Email<input name="email" type="email" required value="<%= editUser.email %>" /></label>
+  <label>Role<select name="role"><% ['general_user','ceo','super_admin'].forEach(r=>{ %><option value="<%= r %>" <%= editUser.role===r?'selected':'' %>><%= r %></option><% }) %></select></label>
+  <label>Status<select name="status"><% ['active','inactive'].forEach(st=>{ %><option value="<%= st %>" <%= editUser.status===st?'selected':'' %>><%= st %></option><% }) %></select></label>
+  <label><input type="checkbox" name="canAssignActions" <%= editUser.permissions?.canAssignActions ? 'checked' : '' %> /> Can assign action items</label>
+  <label><input type="checkbox" name="canAssignFollowups" <%= editUser.permissions?.canAssignFollowups ? 'checked' : '' %> /> Can assign follow-ups</label>
+  <label><input type="checkbox" name="canViewAuditLog" <%= editUser.permissions?.canViewAuditLog ? 'checked' : '' %> /> Can view audit log</label>
+  <button class="v5-primary" type="submit">Save user</button> <a href="/org/users">Cancel</a>
+</form>
