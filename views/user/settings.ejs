@@ -1,0 +1,59 @@
+<% layout('layout') %>
+<section class="simple-page has-ms-footer v31-page">
+  <%- include('../partials/user_topbar_simple', { activeNav: 'settings', showBack: true }) %>
+  <main class="simple-page-main">
+    <section class="simple-page-hero compact">
+      <p class="simple-eyebrow">Profile & preferences</p>
+      <div class="simple-title-row"><div><h1>My Settings</h1><p>Profile, meeting preferences, and Assistant Desk delegation.</p></div><a class="meeting-action" href="/user/assistant">Open Assistant Desk</a></div>
+      <% if (saved) { %><div class="simple-success">Saved.</div><% } %>
+    </section>
+
+    <section class="v31-two-col">
+      <article class="v31-panel">
+        <h2>Profile</h2>
+        <form method="POST" action="/user/settings/profile" class="v31-form-grid">
+          <label>Name<input name="name" value="<%= user.name || '' %>" /></label>
+          <label>Email<input value="<%= user.email %>" disabled /></label>
+          <label>Department<input name="department" value="<%= user.department || '' %>" /></label>
+          <label>Designation<input name="designation" value="<%= user.designation || '' %>" /></label>
+          <label>Summary style<select name="summaryStyle"><% ['balanced','executive','detailed'].forEach(function(x){ %><option value="<%= x %>" <%= (user.preferences?.summaryStyle || 'balanced')===x ? 'selected' : '' %>><%= x %></option><% }) %></select></label>
+          <label>AI tone<select name="aiTone"><% ['practical','brief','warm','direct'].forEach(function(x){ %><option value="<%= x %>" <%= (user.preferences?.aiTone || 'practical')===x ? 'selected' : '' %>><%= x %></option><% }) %></select></label>
+          <div class="v31-checks span-2"><label><input type="checkbox" name="includeDetailedNotesByDefault" <%= user.preferences?.includeDetailedNotesByDefault !== false ? 'checked' : '' %> /> Include detailed notes by default</label><label><input type="checkbox" name="includeActionItemsByDefault" <%= user.preferences?.includeActionItemsByDefault !== false ? 'checked' : '' %> /> Include action items by default</label></div>
+          <div class="span-2"><button class="meeting-action primary" type="submit">Save settings</button></div>
+        </form>
+      </article>
+
+      <article id="assistant-desk" class="v31-panel">
+        <h2>People who assist me</h2>
+        <p class="simple-muted">Assistants can add prep notes and questions for you. They do not automatically get access to private transcripts or restricted thread content.</p>
+        <form method="POST" action="/user/settings/assistants" class="v31-form-grid compact">
+          <label class="span-2">Assistant<select name="assistantEmail" required><option value="">Choose user</option><% (users || []).filter(u => u.email !== user.email).forEach(function(u){ %><option value="<%= u.email %>"><%= u.name || u.email %> — <%= u.email %></option><% }) %></select></label>
+          <div class="v31-checks span-2">
+            <label><input type="checkbox" name="canAddGeneralNotes" checked /> General notes</label>
+            <label><input type="checkbox" name="canAddMeetingNotes" checked /> Meeting notes</label>
+            <label><input type="checkbox" name="canAddThreadNotes" checked /> Thread notes</label>
+            <label><input type="checkbox" name="canAddQuestions" checked /> Questions to ask</label>
+            <label><input type="checkbox" name="canAddFollowups" checked /> Follow-ups</label>
+            <label><input type="checkbox" name="canAddRisks" checked /> Risks/watchouts</label>
+          </div>
+          <div class="span-2"><button class="meeting-action primary" type="submit">Add assistant</button></div>
+        </form>
+        <div class="v31-list">
+          <% (assistantsForMe || []).forEach(function(a){ %>
+            <div class="v31-row-card"><div><strong><%= a.assistantName || a.assistantEmail %></strong><small><%= a.assistantEmail %> · added via <%= a.source %></small></div><form method="POST" action="/user/settings/assistants/remove"><input type="hidden" name="assistantEmail" value="<%= a.assistantEmail %>" /><button class="meeting-action" type="submit">Remove</button></form></div>
+          <% }) %>
+          <% if (!assistantsForMe || !assistantsForMe.length) { %><div class="simple-empty-card small"><strong>No assistants yet.</strong><p>Add someone who can prepare notes and questions for you.</p></div><% } %>
+        </div>
+      </article>
+    </section>
+
+    <section class="v31-panel">
+      <h2>People I assist</h2>
+      <div class="v31-list inline">
+        <% (peopleIAssist || []).forEach(function(a){ %><a class="v31-chip-card" href="/user/assistant"><strong><%= a.principalName || a.principalEmail %></strong><small><%= a.principalEmail %></small></a><% }) %>
+        <% if (!peopleIAssist || !peopleIAssist.length) { %><p class="simple-muted">You are not assigned as assistant to anyone yet.</p><% } %>
+      </div>
+    </section>
+  </main>
+  <footer class="ms-minutes-footer">🐣 tiny meeting magic · (c) Karthik</footer>
+</section>

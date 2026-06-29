@@ -1,0 +1,19 @@
+<% layout('layout') %>
+<section class="org-hero compact"><div><div class="org-kicker">Org users</div><h1>Edit user</h1><p><%= editUser.email %></p></div><a class="org-secondary-btn" href="/org/users">Back to users</a></section>
+<%- include('../../partials/org_admin_nav', { activeOrgNav: typeof activeOrgNav !== 'undefined' ? activeOrgNav : '' }) %>
+<section class="org-panel narrow">
+  <form method="POST" action="/org/users/<%= editUser._id %>/edit" class="org-form-grid">
+    <label>Name<input name="name" value="<%= editUser.name || '' %>" /></label>
+    <label>Email<input name="email" type="email" required value="<%= editUser.email %>" /></label>
+    <label>Role<select name="role"><% ['general_user','ceo','super_admin'].forEach(r=>{ %><option value="<%= r %>" <%= editUser.role===r?'selected':'' %>><%= ({general_user:'General User',ceo:'CEO',super_admin:'Super Admin'}[r]) %></option><% }) %></select></label>
+    <label>Status<select name="status"><% ['active','inactive'].forEach(st=>{ %><option value="<%= st %>" <%= editUser.status===st?'selected':'' %>><%= st %></option><% }) %></select></label>
+    <label>Department<input name="department" value="<%= editUser.department || '' %>" /></label>
+    <label>Designation<input name="designation" value="<%= editUser.designation || '' %>" /></label>
+    <div class="org-checks span-2">
+      <label><input type="checkbox" name="canAssignActions" <%= editUser.permissions?.canAssignActions ? 'checked' : '' %> /> Can assign action items</label>
+      <label><input type="checkbox" name="canAssignFollowups" <%= editUser.permissions?.canAssignFollowups ? 'checked' : '' %> /> Can assign follow-ups</label>
+      <label><input type="checkbox" name="canViewAuditLog" <%= editUser.permissions?.canViewAuditLog ? 'checked' : '' %> /> Can view audit log</label>
+    </div>
+    <div class="org-form-actions span-2"><button class="org-primary-btn" type="submit">Save user</button><a href="/org/users">Cancel</a></div>
+  </form>
+</section>

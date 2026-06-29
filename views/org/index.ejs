@@ -1,0 +1,74 @@
+<% layout('layout') %>
+<section class="org-hero">
+  <div>
+    <div class="org-kicker">Ms. Minutes Admin</div>
+    <h1><%= org.name %></h1>
+    <p>Launch cockpit for users, logs, diagnostics and setup. Slightly cute. Very useful.</p>
+  </div>
+  <div class="org-hero-actions">
+    <a class="org-primary-btn" href="/org/users/bulk">Bulk add users</a>
+    <a class="org-secondary-btn" href="/org/activity">View activity</a>
+  </div>
+</section>
+<%- include('../partials/org_admin_nav', { activeOrgNav: typeof activeOrgNav !== 'undefined' ? activeOrgNav : '' }) %>
+<section class="org-metric-grid">
+  <article><span>Total users</span><strong><%= metrics.totalUsers %></strong><small><%= metrics.activeUsers %> active · <%= metrics.inactiveUsers %> inactive</small></article>
+  <article><span>Logged in this week</span><strong><%= metrics.usersLoggedInWeek %></strong><small>Unique users</small></article>
+  <article><span>Meetings cached</span><strong><%= metrics.meetingsCached %></strong><small><%= metrics.meetingsWithTranscript %> with transcripts</small></article>
+  <article><span>AI summaries</span><strong><%= metrics.summariesGenerated %></strong><small>Generated so far</small></article>
+  <article><span>Threads</span><strong><%= metrics.threadsCreated %></strong><small>Created in this org</small></article>
+  <article><span>Page visits this week</span><strong><%= metrics.pageVisitsWeek %></strong><small>Real UI visits/actions</small></article>
+  <article><span>Open errors</span><strong><%= metrics.errorsOpen %></strong><small>Needs attention</small></article>
+  <article><span>Open issues</span><strong><%= metrics.openIssues %></strong><small>User-reported issues</small></article>
+  <article><span>Never logged in</span><strong><%= metrics.usersNeverLoggedIn %></strong><small>Need onboarding</small></article>
+  <article><span>Reviewed summaries</span><strong><%= metrics.summariesReviewed %></strong><small>Human verified</small></article>
+  <article><span>Intelligence used</span><strong><%= metrics.intelligenceUsed %></strong><small>Prep / quick answers</small></article>
+</section>
+
+<section class="org-card-grid">
+  <a class="org-launch-card" href="/org/users"><span>👥</span><strong>Manage users</strong><small>Add, edit, activate or deactivate users.</small></a>
+  <a class="org-launch-card" href="/org/users/bulk"><span>📥</span><strong>Bulk upload</strong><small>Download template and import users by CSV.</small></a>
+  <a class="org-launch-card" href="/org/activity"><span>👣</span><strong>Activity logs</strong><small>See who visited which page and when.</small></a>
+  <a class="org-launch-card" href="/org/usage"><span>📊</span><strong>Usage dashboard</strong><small>Adoption, active users, summaries, and top pages.</small></a>
+  <a class="org-launch-card" href="/org/issues"><span>🚩</span><strong>Issue reports</strong><small>Wrong transcript, summary, permission and missing transcript reports.</small></a>
+  <a class="org-launch-card" href="/org/assistants"><span>🗒️</span><strong>Assistant Desk</strong><small>Assign assistants to key people and review delegated prep notes.</small></a>
+  <a class="org-launch-card" href="/org/login-logs"><span>🔐</span><strong>Login logs</strong><small>Track successful and failed user sign-ins.</small></a>
+  <a class="org-launch-card" href="/org/diagnostics"><span>🛠️</span><strong>Diagnostics</strong><small>Graph, transcripts, AI and health checks.</small></a>
+  <a class="org-launch-card" href="/org/health"><span>🫀</span><strong>Production health</strong><small>Deployment, sweep, AI, Graph and trial-readiness checks.</small></a>
+  <a class="org-launch-card" href="/org/errors"><span>🚨</span><strong>Error logs</strong><small>Review and resolve server-side errors.</small></a>
+  <a class="org-launch-card" href="/org/settings"><span>⚙️</span><strong>Settings</strong><small>Domains, tenant and retention controls.</small></a>
+</section>
+
+
+<section class="org-panel v30-launch-checklist">
+  <div class="org-section-head"><div><h2>Launch readiness checklist</h2><p>A quick MVP confidence check before inviting more users.</p></div></div>
+  <% const launchItems = [
+    ['Users added', launchChecklist.usersAdded],
+    ['Microsoft login working', launchChecklist.loginWorking],
+    ['Meetings refreshed', launchChecklist.meetingsCached],
+    ['Transcripts detected', launchChecklist.transcriptsDetected],
+    ['AI summaries generated', launchChecklist.summariesGenerated],
+    ['Threads created', launchChecklist.threadsCreated],
+    ['Activity logs working', launchChecklist.activityLogging],
+    ['Error visibility available', launchChecklist.errorVisibility],
+    ['Issue reporting available', launchChecklist.issueReporting],
+  ]; %>
+  <div class="v30-admin-check-grid">
+    <% launchItems.forEach(function(item){ %><div class="v30-admin-check <%= item[1] ? 'done' : '' %>"><span><%= item[1] ? '✓' : '○' %></span><strong><%= item[0] %></strong></div><% }) %>
+  </div>
+</section>
+
+<section class="org-panel">
+  <div class="org-section-head"><div><h2>Recent activity</h2><p>Last few page visits/actions in this org.</p></div><a href="/org/activity">Open full log</a></div>
+  <div class="org-table-wrap">
+    <table class="org-table">
+      <thead><tr><th>Time</th><th>Who</th><th>Page</th><th>Status</th></tr></thead>
+      <tbody>
+        <% (recentActivity || []).forEach(a => { %>
+          <tr><td><%= a.createdAt ? new Date(a.createdAt).toLocaleString('en-IN') : '' %></td><td><strong><%= a.actorName || a.actorEmail || '-' %></strong><br><small><%= a.actorEmail || a.actorType %></small></td><td><%= a.method %> <%= a.path || a.route %></td><td><span class="org-pill <%= a.statusCode >= 400 ? 'bad' : 'ok' %>"><%= a.statusCode %></span></td></tr>
+        <% }) %>
+        <% if (!recentActivity || !recentActivity.length) { %><tr><td colspan="4" class="muted">No activity logged yet. The first footprints will appear here soon.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+</section>

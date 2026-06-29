@@ -1,0 +1,13 @@
+<% layout('layout') %>
+<section class="org-hero">
+  <div><div class="org-kicker">Issue reports</div><h1>Things users flagged</h1><p>Wrong transcript, bad AI summary, missing transcript, or other launch feedback.</p></div>
+  <div class="org-hero-actions"><a class="org-secondary-btn" href="/org/errors">Error logs</a><a class="org-secondary-btn" href="/org">Dashboard</a></div>
+</section>
+<%- include('../partials/org_admin_nav', { activeOrgNav: typeof activeOrgNav !== 'undefined' ? activeOrgNav : '' }) %>
+<section class="org-panel">
+  <form class="org-filter-form" method="GET" action="/org/issues"><label><span>Status</span><select name="status"><option value="">All</option><% ['open','reviewing','resolved','dismissed'].forEach(function(st){ %><option value="<%= st %>" <%= selectedStatus===st ? 'selected' : '' %>><%= st %></option><% }) %></select></label><button class="org-primary-btn" type="submit">Filter</button></form>
+  <div class="org-table-wrap"><table class="org-table"><thead><tr><th>Time</th><th>Reporter</th><th>Issue</th><th>Target</th><th>Status</th><th>Action</th></tr></thead><tbody>
+    <% (reports||[]).forEach(function(r){ %><tr><td><%= r.createdAt ? new Date(r.createdAt).toLocaleString('en-IN') : '' %></td><td><strong><%= r.reporterName || r.reporterEmail || '-' %></strong><br><small><%= r.reporterEmail || '' %></small></td><td><span class="org-pill warn"><%= r.issueType %></span><br><small><%= r.details || '-' %></small></td><td><%= r.targetTitle || r.targetType %><br><small><%= r.targetType %> · <%= r.targetId || '-' %></small></td><td><span class="org-pill <%= r.status==='resolved' ? 'ok' : (r.status==='dismissed' ? '' : 'bad') %>"><%= r.status %></span></td><td><form method="POST" action="/org/issues/<%= r._id %>/status"><select name="status"><% ['open','reviewing','resolved','dismissed'].forEach(function(st){ %><option value="<%= st %>" <%= r.status===st ? 'selected' : '' %>><%= st %></option><% }) %></select><button type="submit">Save</button></form></td></tr><% }) %>
+    <% if(!reports || !reports.length){ %><tr><td colspan="6" class="muted">No issues reported yet. Good sign, or everyone is being polite.</td></tr><% } %>
+  </tbody></table></div>
+</section>

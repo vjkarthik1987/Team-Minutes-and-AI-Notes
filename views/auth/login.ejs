@@ -1,0 +1,37 @@
+<% layout('layout') %>
+<section class="org-auth-screen">
+  <header class="org-auth-topbar">
+    <a class="simple-hub-brand org-admin-brand" href="/auth/login" aria-label="Ms. Minutes Admin login">
+      <span class="ms-brand-face">✎</span><strong>Ms. Minutes</strong><em>Admin</em>
+    </a>
+    <nav class="simple-page-nav org-auth-nav" aria-label="Login navigation">
+      <a href="/user/login">User login</a>
+      <a href="/auth/signup">Create org</a>
+    </nav>
+  </header>
+
+  <main class="org-auth-page">
+    <article class="org-auth-card">
+      <div class="org-auth-badge">Org login</div>
+      <h1>Control panel for tiny meeting magic.</h1>
+      <p class="org-auth-sub">Add users, check usage, watch logs, and keep the meeting-brain behaved before launch.</p>
+      <div class="org-login-switch"><a href="/user/login">User login</a><a class="active" href="/auth/login">Org admin</a></div>
+      <form method="POST" action="/auth/login" class="org-auth-form">
+        <label>Admin email<input name="email" type="email" required placeholder="admin@company.com" autocomplete="username" /></label>
+        <label>Password<input name="password" type="password" required placeholder="••••••••" autocomplete="current-password" /></label>
+        <button type="submit" class="org-primary-btn">Log in <span>→</span></button>
+        <p>New organisation? <a href="/auth/signup">Create one</a></p>
+      </form>
+    </article>
+    <aside class="org-auth-side">
+      <strong>Launch checklist starts here</strong>
+      <ul>
+        <li>Bulk add users</li>
+        <li>Track page visits</li>
+        <li>Check login and error logs</li>
+        <li>Keep the org setup tidy</li>
+      </ul>
+    </aside>
+  </main>
+  <footer class="org-auth-footer">🐥 tiny meeting magic · admin cockpit · (c) Karthik</footer>
+</section>

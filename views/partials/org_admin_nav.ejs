@@ -1,0 +1,22 @@
+<% const navItems = [
+  ['dashboard','Dashboard','/org'],
+  ['users','Users','/org/users'],
+  ['bulk','Bulk upload','/org/users/bulk'],
+  ['activity','Activity logs','/org/activity'],
+  ['loginLogs','Login logs','/org/login-logs'],
+  ['usage','Usage','/org/usage'],
+  ['issues','Issues','/org/issues'],
+  ['assistants','Assistants','/org/assistants'],
+  ['diagnostics','Diagnostics','/org/diagnostics'],
+  ['health','Health','/org/health'],
+  ['errors','Errors','/org/errors'],
+  ['settings','Settings','/org/settings'],
+]; %>
+<section class="org-admin-subnav v31-org-nav" aria-label="Org admin navigation" data-mobile-menu-root>
+  <button class="ms-mobile-menu-toggle org-menu-toggle" type="button" data-mobile-menu-toggle aria-expanded="false">☰ Admin menu</button>
+  <div class="org-admin-links" data-mobile-menu-panel>
+    <% navItems.forEach(function(item){ %>
+      <a class="<%= activeOrgNav === item[0] ? 'active' : '' %>" href="<%= item[2] %>"><%= item[1] %></a>
+    <% }) %>
+  </div>
+</section>

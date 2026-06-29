@@ -1,0 +1,18 @@
+<% layout('layout') %>
+<section class="org-hero compact"><div><div class="org-kicker">Org users</div><h1>Add user</h1><p>Create one user manually. For many users, use bulk upload.</p></div><a class="org-secondary-btn" href="/org/users">Back to users</a></section>
+<%- include('../../partials/org_admin_nav', { activeOrgNav: typeof activeOrgNav !== 'undefined' ? activeOrgNav : '' }) %>
+<section class="org-panel narrow">
+  <form method="POST" action="/org/users" class="org-form-grid">
+    <label>Name<input name="name" type="text" placeholder="Optional" /></label>
+    <label>Email<input name="email" type="email" required placeholder="user@yourcompany.com" /></label>
+    <label>Role<select name="role"><option value="general_user" selected>General User</option><option value="ceo">CEO</option><option value="super_admin">Super Admin</option></select></label>
+    <label>Department<input name="department" placeholder="Product Engineering" /></label>
+    <label>Designation<input name="designation" placeholder="Team Lead" /></label>
+    <div class="org-checks span-2">
+      <label><input type="checkbox" name="canAssignActions" /> Can assign action items</label>
+      <label><input type="checkbox" name="canAssignFollowups" /> Can assign follow-ups</label>
+      <label><input type="checkbox" name="canViewAuditLog" /> Can view audit log</label>
+    </div>
+    <div class="org-form-actions span-2"><button class="org-primary-btn" type="submit">Create user</button><a href="/org/users">Cancel</a></div>
+  </form>
+</section>

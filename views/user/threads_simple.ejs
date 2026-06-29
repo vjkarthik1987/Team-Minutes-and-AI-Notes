@@ -1,0 +1,243 @@
+<% layout('layout') %>
+
+<section class="simple-page simple-threads-page has-ms-footer">
+  <%- include('../partials/user_topbar_simple', { activeNav: 'threads', showBack: true }) %>
+  <main class="simple-page-main">
+    <section class="simple-page-hero compact">
+      <p class="simple-eyebrow">Outcome threads</p>
+      <div class="simple-title-row">
+        <div>
+          <h1>Threads</h1>
+          <p>Simple workstreams across meetings, decisions, risks, and follow-ups.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="thread-stats-row" aria-label="Thread stats">
+      <div><strong><%= counts.total %></strong><span>Total threads</span></div>
+      <div><strong><%= counts.active %></strong><span>Active</span></div>
+      <div><strong><%= counts.atRisk %></strong><span>Needs attention</span></div>
+      <div><strong><%= counts.actions %></strong><span>Open actions</span></div>
+    </section>
+
+    <section class="thread-create-launch-card">
+      <div>
+        <h2>Create a thread</h2>
+        <p>Use threads for things that continue across meetings: go-lives, defects, migrations, AI initiatives, customer risks, or leadership follow-ups.</p>
+      </div>
+      <button type="button" class="thread-create-open js-open-thread-modal">＋ Create thread</button>
+    </section>
+
+    <form class="meeting-search-form thread-search-form" method="GET" action="/user/threads" role="search" onsubmit="return false;">
+      <div class="meeting-search-wrap dynamic">
+        <span>⌕</span>
+        <input id="threadSearchInput" type="search" name="q" value="<%= q || '' %>" placeholder="Type 3+ letters to search threads by name, client, outcome, collaborator, or status..." aria-label="Search threads" autocomplete="off" />
+        <button id="threadSearchClear" type="button">Clear</button>
+      </div>
+      <p id="threadSearchHint" class="thread-search-hint">Showing all threads. Type at least 3 characters to filter instantly.</p>
+    </form>
+
+    <% if (!threads || !threads.length) { %>
+      <section class="simple-empty-card">
+        <h2>No threads yet</h2>
+        <p>Create your first thread above. Start with one live workstream and keep it simple.</p>
+      </section>
+    <% } else { %>
+      <section id="threadCardList" class="thread-card-list" aria-label="Threads list">
+        <% threads.forEach(function(t){ %>
+          <article class="thread-card thread-tone-<%= t.statusTone %>" data-thread-search="<%= [t.name, t.objective, t.description, t.clientName, t.statusLabel, t.ownerEmail, (t.contributorEmails || []).join(' '), (t.memberEmails || []).join(' '), (t.tags || []).join(' ')].filter(Boolean).join(' ').toLowerCase().replace(/&/g, '&amp;').replace(/"/g, '&quot;') %>">
+            <div class="thread-card-top">
+              <span class="thread-status"><%= t.statusLabel %></span>
+              <span class="thread-updated"><%= t.updatedLabel %></span>
+            </div>
+            <h2><a href="/user/threads/<%= t._id %>"><%= t.name %></a></h2>
+            <p><%= t.snippet %></p>
+            <div class="thread-chip-row">
+              <% if (t.clientName) { %><span><%= t.clientName %></span><% } %>
+              <span><%= t.meetingCount %> meetings</span>
+              <span><%= t.openActions %> open actions</span>
+              <span><%= t.openRisks %> risks</span>
+            </div>
+            <% if (t.latestEntryTitle) { %>
+              <div class="thread-latest">Latest: <%= t.latestEntryTitle %></div>
+            <% } %>
+            <div class="thread-card-footer">
+              <small>Owner: <%= t.ownerEmail || 'Unassigned' %></small>
+              <a href="/user/threads/<%= t._id %>">Open →</a>
+            </div>
+          </article>
+        <% }) %>
+      </section>
+      <section id="threadNoResults" class="simple-empty-card hidden">
+        <h2>No matching threads</h2>
+        <p>Try a different thread name, client, collaborator, status, or outcome keyword.</p>
+      </section>
+    <% } %>
+  </main>
+
+  <div id="threadCreateModal" class="thread-modal" aria-hidden="true">
+    <div class="thread-modal-backdrop js-close-thread-modal"></div>
+    <section class="thread-modal-card" role="dialog" aria-modal="true" aria-labelledby="threadCreateTitle">
+      <button type="button" class="thread-modal-close js-close-thread-modal" aria-label="Close">×</button>
+      <div class="thread-modal-head">
+        <span>🧵</span>
+        <div>
+          <p class="simple-eyebrow">New thread</p>
+          <h2 id="threadCreateTitle">Create a clean workstream</h2>
+          <p>The creator is automatically added as a collaborator. Add others by typing 3+ letters.</p>
+        </div>
+      </div>
+
+      <form method="POST" action="/user/threads" class="thread-modal-form" id="threadCreateForm">
+        <label>
+          <span>Thread name</span>
+          <input name="name" required maxlength="120" placeholder="e.g. Standard Bank Ghana Go-live" />
+        </label>
+        <label>
+          <span>Outcome</span>
+          <textarea name="objective" rows="3" placeholder="What should this thread achieve?"></textarea>
+        </label>
+        <div class="thread-modal-two">
+          <label>
+            <span>Client / area</span>
+            <input name="clientName" placeholder="e.g. Standard Bank / Platform / AI" />
+          </label>
+          <label>
+            <span>Status</span>
+            <select name="status">
+              <option>Active</option>
+              <option>At Risk</option>
+              <option>Blocked</option>
+              <option>Closed</option>
+            </select>
+          </label>
+        </div>
+        <label class="thread-collab-field">
+          <span>Collaborators</span>
+          <div class="thread-collab-box">
+            <div id="threadCollabChips" class="thread-collab-chips">
+              <span class="thread-collab-chip creator">You · <%= user.email %></span>
+            </div>
+            <input id="threadCollabSearch" type="search" placeholder="Type 3+ letters to add people..." autocomplete="off" />
+            <div id="threadCollabResults" class="thread-collab-results hidden"></div>
+          </div>
+          <small>Only registered users from the same org / tenant are shown.</small>
+          <input type="hidden" name="people" id="threadPeopleInput" value="" />
+        </label>
+        <div class="thread-modal-actions">
+          <button type="button" class="meeting-action js-close-thread-modal">Cancel</button>
+          <button type="submit" class="thread-create-submit">Create thread →</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+
+<script>
+(function(){
+  const modal = document.getElementById('threadCreateModal');
+  const openBtn = document.querySelector('.js-open-thread-modal');
+  const closeBtns = document.querySelectorAll('.js-close-thread-modal');
+  const collabSearch = document.getElementById('threadCollabSearch');
+  const collabResults = document.getElementById('threadCollabResults');
+  const chips = document.getElementById('threadCollabChips');
+  const peopleInput = document.getElementById('threadPeopleInput');
+  const selected = new Map();
+  let searchTimer = null;
+
+  function openModal(){
+    if(!modal) return;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden','false');
+    setTimeout(()=>document.querySelector('#threadCreateForm input[name="name"]')?.focus(), 80);
+  }
+  function closeModal(){
+    if(!modal) return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden','true');
+  }
+  openBtn?.addEventListener('click', openModal);
+  closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeModal(); });
+
+  function syncPeople(){
+    if(peopleInput) peopleInput.value = Array.from(selected.keys()).join(',');
+  }
+  function addPerson(person){
+    const email = String(person.email || '').trim().toLowerCase();
+    if(!email || selected.has(email)) return;
+    selected.set(email, { name: person.name || email, email });
+    const chip = document.createElement('span');
+    chip.className = 'thread-collab-chip';
+    chip.dataset.email = email;
+    chip.innerHTML = '<b>' + escapeHtml(person.name || email) + '</b><small>' + escapeHtml(email) + '</small><button type="button" aria-label="Remove collaborator">×</button>';
+    chip.querySelector('button')?.addEventListener('click', () => {
+      selected.delete(email);
+      chip.remove();
+      syncPeople();
+    });
+    chips?.appendChild(chip);
+    syncPeople();
+  }
+  function escapeHtml(v){
+    return String(v || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+  async function searchPeople(q){
+    if(!collabResults) return;
+    if(q.length < 3){ collabResults.classList.add('hidden'); collabResults.innerHTML=''; return; }
+    collabResults.classList.remove('hidden');
+    collabResults.innerHTML = '<div class="thread-collab-loading">Searching people…</div>';
+    try{
+      const res = await fetch('/user/people/search?q=' + encodeURIComponent(q));
+      const data = await res.json();
+      const people = (data.people || []).filter(p => p.email && !selected.has(String(p.email).toLowerCase()));
+      if(!people.length){
+        collabResults.innerHTML = '<div class="thread-collab-empty">No matching people found.</div>';
+        return;
+      }
+      collabResults.innerHTML = people.map(p => '<button type="button" data-email="' + escapeHtml(p.email) + '" data-name="' + escapeHtml(p.name || p.email) + '"><strong>' + escapeHtml(p.name || p.email) + '</strong><span>' + escapeHtml(p.email) + '</span></button>').join('');
+      collabResults.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+        addPerson({ name: btn.dataset.name, email: btn.dataset.email });
+        collabSearch.value = '';
+        collabResults.classList.add('hidden');
+        collabResults.innerHTML = '';
+        collabSearch.focus();
+      }));
+    }catch(e){
+      collabResults.innerHTML = '<div class="thread-collab-empty">Could not search people.</div>';
+    }
+  }
+  collabSearch?.addEventListener('input', () => {
+    const q = collabSearch.value.trim();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => searchPeople(q), 220);
+  });
+  const searchInput = document.getElementById('threadSearchInput');
+  const clearBtn = document.getElementById('threadSearchClear');
+  const hint = document.getElementById('threadSearchHint');
+  const cards = Array.from(document.querySelectorAll('.thread-card'));
+  const noResults = document.getElementById('threadNoResults');
+  function filterThreads(){
+    const q = String(searchInput?.value || '').trim().toLowerCase();
+    let visible = 0;
+    if(q.length > 0 && q.length < 3){
+      cards.forEach(c => c.classList.remove('hidden'));
+      if(hint) hint.textContent = 'Type at least 3 characters to search.';
+      noResults?.classList.add('hidden');
+      return;
+    }
+    cards.forEach(card => {
+      const show = q.length < 3 || String(card.dataset.threadSearch || '').includes(q);
+      card.classList.toggle('hidden', !show);
+      if(show) visible++;
+    });
+    if(hint) hint.textContent = q.length >= 3 ? (visible + ' matching thread' + (visible === 1 ? '' : 's') + ' found.') : 'Showing all threads. Type at least 3 characters to filter instantly.';
+    noResults?.classList.toggle('hidden', !(q.length >= 3 && visible === 0));
+  }
+  searchInput?.addEventListener('input', filterThreads);
+  clearBtn?.addEventListener('click', () => { if(searchInput){ searchInput.value=''; filterThreads(); searchInput.focus(); }});
+  filterThreads();
+})();
+</script>
+  <footer class="ms-minutes-footer">🐣 tiny meeting magic · (c) Karthik</footer>
+</section>

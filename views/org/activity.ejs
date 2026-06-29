@@ -1,0 +1,47 @@
+<% layout('layout') %>
+<section class="org-hero compact">
+  <div><div class="org-kicker">Audit trail</div><h1>Activity logs</h1><p>Page visits and important UI actions by users and org admins.</p></div>
+  <a class="org-secondary-btn" href="/org">Dashboard</a>
+</section>
+<%- include('../partials/org_admin_nav', { activeOrgNav: typeof activeOrgNav !== 'undefined' ? activeOrgNav : '' }) %>
+<section class="org-panel v311-activity-filter-panel">
+  <form method="GET" action="/org/activity" class="org-filter-form v311-activity-filter">
+    <label>Email<input name="email" value="<%= filters.email || '' %>" placeholder="user@company.com" /></label>
+    <label>Page contains<input name="path" value="<%= filters.path || '' %>" placeholder="/user/intelligence" /></label>
+    <label>Method<select name="method"><option value="">Any</option><% ['GET','POST','PUT','PATCH','DELETE'].forEach(m => { %><option value="<%= m %>" <%= filters.method===m?'selected':'' %>><%= m %></option><% }) %></select></label>
+    <label>Actor<select name="actorType"><option value="">Any</option><option value="user" <%= filters.actorType==='user'?'selected':'' %>>User</option><option value="org" <%= filters.actorType==='org'?'selected':'' %>>Org admin</option></select></label>
+    <label>From<input name="from" type="date" value="<%= filters.from || '' %>" /></label>
+    <label>To<input name="to" type="date" value="<%= filters.to || '' %>" /></label>
+    <div class="org-filter-actions"><button class="org-primary-btn" type="submit">Filter</button><a href="/org/activity">Clear</a></div>
+  </form>
+</section>
+
+<section class="org-card-grid small v311-top-pages">
+  <% (topPages || []).slice(0,3).forEach(p => { %>
+    <article class="org-mini-card"><span><%= p.count %></span><strong><%= p._id || '/' %></strong><small>visits this week</small></article>
+  <% }) %>
+  <% if (!topPages || !topPages.length) { %><article class="org-mini-card"><span>0</span><strong>No top pages yet</strong><small>Activity will build as users browse.</small></article><% } %>
+</section>
+
+<section class="org-panel v311-activity-table-panel">
+  <div class="org-section-head"><div><h2>Latest logs</h2><p>Showing up to 500 matching records.</p></div></div>
+  <div class="org-table-wrap">
+    <table class="org-table">
+      <thead><tr><th>Time</th><th>Actor</th><th>Method</th><th>Page</th><th>Status</th><th>Duration</th><th>Device</th></tr></thead>
+      <tbody>
+        <% (logs || []).forEach(l => { %>
+          <tr>
+            <td><%= l.createdAt ? new Date(l.createdAt).toLocaleString('en-IN') : '' %></td>
+            <td><strong><%= l.actorName || l.actorEmail || '-' %></strong><br><small><%= l.actorEmail || l.actorType %> · <%= l.actorRole || l.actorType %></small></td>
+            <td><span class="org-pill <%= l.isMutation ? 'warn' : 'neutral' %>"><%= l.method %></span></td>
+            <td><strong><%= l.path || '-' %></strong><br><small><%= l.route || '' %></small></td>
+            <td><span class="org-pill <%= l.statusCode >= 400 ? 'bad' : 'ok' %>"><%= l.statusCode || '-' %></span></td>
+            <td><%= l.durationMs || 0 %> ms</td>
+            <td><small><%= l.ip || '-' %><br><%= l.userAgent || '-' %></small></td>
+          </tr>
+        <% }) %>
+        <% if (!logs || !logs.length) { %><tr><td colspan="7" class="muted">No activity found for this filter.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+</section>

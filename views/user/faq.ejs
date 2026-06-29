@@ -1,0 +1,74 @@
+<% layout('layout') %>
+<section class="simple-page has-ms-footer v31-page v313-faq-page">
+  <%- include('../partials/user_topbar_simple', { activeNav: 'faq', showBack: true }) %>
+  <main class="simple-page-main">
+    <section class="simple-page-hero compact v313-faq-hero">
+      <p class="simple-eyebrow">Help & FAQ</p>
+      <div class="simple-title-row"><div><h1>Ms. Minutes FAQ</h1><p>A practical guide to meetings, transcripts, AI summaries, threads, Assistant Desk, manual links, and topic recall.</p></div></div>
+    </section>
+
+    <section class="v31-panel v313-faq-index">
+      <h2>Quick guide</h2>
+      <div class="v313-faq-links">
+        <a href="#basics">Basics</a><a href="#meetings">Meetings & transcripts</a><a href="#summaries">AI summaries</a><a href="#threads">Threads</a><a href="#links">Manual links</a><a href="#assistant">Assistant Desk</a><a href="#recall">What did I discuss?</a><a href="#privacy">Privacy</a><a href="#troubleshooting">Troubleshooting</a>
+      </div>
+    </section>
+
+    <section id="basics" class="v31-panel v313-faq-section"><h2>1. Basics</h2>
+      <details open><summary>What is Ms. Minutes?</summary><p>Ms. Minutes is a meeting memory app. It helps you find Teams meeting transcripts, generate AI summaries, organise related meetings into threads, prepare for upcoming meetings, and recall what was discussed about a topic.</p></details>
+      <details><summary>What is the main workflow?</summary><p>Refresh meetings from Outlook, open a transcript, generate AI notes, add the meeting to a thread, add useful notes, then use Intelligence or Recall before the next meeting.</p></details>
+      <details><summary>Is this meant to replace human judgement?</summary><p>No. AI outputs are useful drafts. Important summaries should be reviewed, corrected, and marked as reviewed before being used for decisions.</p></details>
+    </section>
+
+    <section id="meetings" class="v31-panel v313-faq-section"><h2>2. Meetings & transcripts</h2>
+      <details open><summary>Why do I need to refresh meetings?</summary><p>Refresh talks to Outlook/Graph and updates your local meeting cache. Future meetings, duplicated Teams meetings, imported invites, and recently ended meetings become visible after refresh.</p></details>
+      <details><summary>Why is transcript matching strict?</summary><p>Teams can reuse the same meeting link for duplicated or recurring meetings. Ms. Minutes does not trust the link alone. It matches the actual occurrence using meeting date and time, then chooses the transcript instance closest to that occurrence.</p></details>
+      <details><summary>Why is a transcript missing?</summary><p>The meeting may not have ended, Teams may not have finished generating the transcript, the transcript may not belong to your occurrence, or your Microsoft permissions/token may not allow access.</p></details>
+      <details><summary>Can future meetings be used?</summary><p>Yes. Future meetings can be cached and manually connected to other meetings. Transcripts and AI summaries become available only after the meeting is over and the transcript exists.</p></details>
+    </section>
+
+    <section id="summaries" class="v31-panel v313-faq-section"><h2>3. AI summaries</h2>
+      <details open><summary>What does AI Summary generate?</summary><p>It produces a concise summary, action-oriented points, and detailed notes. The format is designed for decision follow-up, not just minutes.</p></details>
+      <details><summary>What does “reviewed” mean?</summary><p>Reviewed means a human has checked the AI output. Edited summaries are also treated as human-reviewed because someone has corrected the output.</p></details>
+      <details><summary>Why should I report a wrong summary?</summary><p>During MVP rollout, issue reports help admin see problems like wrong transcript, bad AI summary, missing transcript, permission issue, or bad thread intelligence.</p></details>
+    </section>
+
+    <section id="threads" class="v31-panel v313-faq-section"><h2>4. Threads</h2>
+      <details open><summary>What is a thread?</summary><p>A thread is a workstream memory. It connects multiple meetings, notes, follow-ups, MoMs, decisions, risks, and progress updates around an outcome.</p></details>
+      <details><summary>Who can add notes to a thread?</summary><p>Thread owners and contributors can add notes. Legacy threads also allow the creator/owner to contribute even if collaborator fields were created before newer permission rules.</p></details>
+      <details><summary>Can I edit or delete my own notes?</summary><p>Yes. From v31.3, notes you created can be edited or deleted from the thread detail page. Others cannot edit or delete your notes.</p></details>
+      <details><summary>What appears in recent thread context?</summary><p>Ms. Minutes shows useful notes, MoMs, follow-ups, progress updates, decisions, risks, and meeting summary context. System noise like collaborator-added logs is filtered out.</p></details>
+    </section>
+
+    <section id="links" class="v31-panel v313-faq-section"><h2>5. Manual meeting links</h2>
+      <details open><summary>Why manually connect meetings?</summary><p>Some meetings are related even if they have different titles, participants, or calendar invites. Manual links let humans tell the system that one meeting is a precursor or successor of another.</p></details>
+      <details><summary>What is a precursor/successor?</summary><p>If meeting X leads to meeting Y, then X is a precursor of Y and Y is a successor of X. If X connects to Y and Y connects to Z, Ms. Minutes treats X, Y, and Z as part of a connected meeting network.</p></details>
+      <details><summary>Who can see a connection?</summary><p>A connection is visible to people in the connected meetings based on organiser/attendee access. The creator can remove the connection they created.</p></details>
+      <details><summary>Can I connect a future meeting?</summary><p>Yes. Search for the future meeting after Outlook refresh has cached it, then connect it as precursor or successor.</p></details>
+    </section>
+
+    <section id="assistant" class="v31-panel v313-faq-section"><h2>6. Assistant Desk</h2>
+      <details open><summary>What is Assistant Desk?</summary><p>Assistant Desk lets trusted assistants add questions, prep notes, follow-up reminders, risks, watchouts, and decision reminders for a principal such as a CEO or function head.</p></details>
+      <details><summary>Can assistants read private transcripts?</summary><p>No. Assistant access is write-focused by default. Assistants can add helpful notes, but they do not automatically get access to restricted transcripts, summaries, or private threads.</p></details>
+      <details><summary>How are assistants added?</summary><p>A user can add assistants from My Settings. Org admins can also assign assistants centrally from the admin Assistants page.</p></details>
+    </section>
+
+    <section id="recall" class="v31-panel v313-faq-section"><h2>7. What did I discuss?</h2>
+      <details open><summary>What does Topic Recall do?</summary><p>It searches your accessible meeting memory for a topic, date range, optional focused meeting, and scope. It then synthesises what was discussed, decisions, open questions, what to ask next, and sources.</p></details>
+      <details><summary>Why is it not just keyword search?</summary><p>Topic Recall expands terms and scores relevance so it does not dump every meeting where a word appeared. For example, “platform roadmap” should focus on roadmap-related content rather than every generic mention of platform.</p></details>
+      <details><summary>Can I search a specific meeting?</summary><p>Yes. Use the Focus meeting filter to anchor the recall to one meeting.</p></details>
+    </section>
+
+    <section id="privacy" class="v31-panel v313-faq-section"><h2>8. Privacy & access</h2>
+      <details open><summary>Can I see meetings I was not part of?</summary><p>No. Pages and AI features should use only content you can access: your transcripts, your threads, your notes, Assistant Desk notes addressed to you, and meetings/threads shared with you.</p></details>
+      <details><summary>Are personal notes private?</summary><p>Personal notes are visible only to the creator. Shared thread notes are visible to thread collaborators.</p></details>
+    </section>
+
+    <section id="troubleshooting" class="v31-panel v313-faq-section"><h2>9. Troubleshooting</h2>
+      <details open><summary>Login fails</summary><p>Check the Azure redirect URL, client secret, tenant/client IDs, and BASE_URL. In Railway, do not hardcode PORT. Use the Railway-provided port.</p></details>
+      <details><summary>Build is slow on Railway</summary><p>Use Node 20 and install with npm ci --omit=dev --legacy-peer-deps. Avoid mixed Node variables like Railpack 18 and Nixpacks 20 at the same time.</p></details>
+      <details><summary>AI fails</summary><p>Check OPENAI_API_KEY, model variables, Railway logs, token limits, and whether the transcript text exists.</p></details>
+      <details><summary>Wrong transcript appears</summary><p>Report the issue. v29.3+ uses strict occurrence matching to avoid using an old transcript from the same Teams link.</p></details>
+    </section>
+  </main><footer class="ms-minutes-footer">🐣 tiny meeting magic · (c) Karthik</footer>
+</section>

@@ -1,0 +1,17 @@
+<% layout('layout') %>
+<section class="page-head"><div><h1 class="title">Error logs</h1><p class="muted">Recent server-side failures captured by v19.</p></div><a class="btn" href="/org/diagnostics">Diagnostics</a></section>
+<%- include('../partials/org_admin_nav', { activeOrgNav: typeof activeOrgNav !== 'undefined' ? activeOrgNav : '' }) %>
+<section class="card">
+  <table class="v8-table">
+    <thead><tr><th>Time</th><th>Level</th><th>Status</th><th>Route</th><th>Actor</th><th>Message</th><th></th></tr></thead>
+    <tbody>
+      <% logs.forEach(e => { %>
+        <tr class="<%= e.resolvedAt ? 'muted-row' : '' %>">
+          <td><%= e.createdAt %></td><td><%= e.level %></td><td><%= e.statusCode %></td><td><%= e.method %> <%= e.route %></td><td><%= e.actorEmail || '-' %></td><td><strong><%= e.source %>:</strong> <%= e.message %><% if (e.stack) { %><details><summary>Stack</summary><pre><%= e.stack %></pre></details><% } %></td>
+          <td><% if (!e.resolvedAt) { %><form method="POST" action="/org/errors/<%= e._id %>/resolve"><button type="submit">Resolve</button></form><% } else { %>Resolved<% } %></td>
+        </tr>
+      <% }) %>
+      <% if (!logs.length) { %><tr><td colspan="7" class="muted">No errors logged.</td></tr><% } %>
+    </tbody>
+  </table>
+</section>

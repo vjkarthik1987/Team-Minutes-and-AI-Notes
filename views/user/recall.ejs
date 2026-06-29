@@ -1,0 +1,123 @@
+<% layout('layout') %>
+<section class="simple-page has-ms-footer v31-page v311-recall-page v312-recall-page">
+  <%- include('../partials/user_topbar_simple', { activeNav: 'recall', showBack: true }) %>
+  <main class="simple-page-main">
+    <section class="simple-page-hero compact v311-recall-hero">
+      <p class="simple-eyebrow">Topic recall</p>
+      <div class="simple-title-row">
+        <div>
+          <h1>What did I discuss?</h1>
+          <p>Ask your accessible meeting memory for a topic, not just keyword hits. Use quick date filters or anchor the search to one specific meeting.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="v31-panel v311-recall-search-card v312-recall-search-card">
+      <form method="POST" action="/user/recall" class="v311-recall-form v312-recall-form" data-loading-message="Searching your meeting memory and synthesising the answer…">
+        <label class="v311-topic-field">Topic or phrase
+          <input name="topic" value="<%= form.topic || '' %>" placeholder="Platform roadmap, transaction pricing, customer green plan..." required />
+        </label>
+
+        <div class="v312-quick-range" aria-label="Quick date range filters">
+          <span>Quick range</span>
+          <input type="hidden" name="quickRange" value="<%= form.quickRange || '' %>" />
+          <% [['3d','Last 3d'],['7d','Last 7d'],['15d','Last 15d'],['30d','Last 30d']].forEach(function(r){ %>
+            <button class="<%= form.quickRange===r[0] ? 'active' : '' %>" type="button" data-quick-range="<%= r[0] %>"><%= r[1] %></button>
+          <% }) %>
+          <small>Quick ranges only fill the dates. Click <strong>Find discussions</strong> when ready.</small>
+        </div>
+
+        <div class="v311-recall-row v312-recall-row">
+          <label>From<input type="date" name="from" value="<%= form.from || '' %>" /></label>
+          <label>To<input type="date" name="to" value="<%= form.to || '' %>" /></label>
+          <label>Scope
+            <select name="scope">
+              <% [['all','Everything I can access'],['meetings','Meetings'],['threads','Threads'],['notes','Notes'],['assistant','Assistant Desk']].forEach(function(s){ %>
+                <option value="<%= s[0] %>" <%= form.scope===s[0] ? 'selected' : '' %>><%= s[1] %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>Focus meeting, optional
+            <select name="focusMeetingId">
+              <option value="">All accessible meetings</option>
+              <% (meetingOptions || []).forEach(function(m){ %>
+                <option value="<%= m.id %>" <%= form.focusMeetingId===m.id ? 'selected' : '' %>><%= m.label %></option>
+              <% }) %>
+            </select>
+          </label>
+          <button class="meeting-action primary" type="submit">Find discussions</button>
+        </div>
+        <div class="v311-recall-hints" aria-label="Example searches">
+          <span>Try:</span>
+          <button type="button" data-fill-topic="Platform roadmap">Platform roadmap</button>
+          <button type="button" data-fill-topic="Transaction pricing">Transaction pricing</button>
+          <button type="button" data-fill-topic="Go back to green">Go back to green</button>
+          <button type="button" data-fill-topic="AI adoption">AI adoption</button>
+        </div>
+      </form>
+    </section>
+
+    <% if (result && result.error) { %><div class="simple-alert"><%= result.error %></div><% } %>
+    <% if (result && result.answer) { %>
+      <section class="v31-panel recall-result v311-recall-result v312-recall-result">
+        <div class="simple-title-row">
+          <div>
+            <p class="simple-eyebrow">Found <%= result.count %> relevant source blocks</p>
+            <h2>What you discussed about “<%= result.topic %>”</h2>
+            <% if (result.focusMeeting) { %>
+              <small class="simple-muted">Focused on: <%= result.focusMeeting.subject %><%= result.focusMeeting.date ? ' · ' + new Date(result.focusMeeting.date).toLocaleString('en-IN') : '' %></small>
+            <% } %>
+            <% if (result.terms && result.terms.length) { %><small class="simple-muted">Smart terms used: <%= result.terms.slice(0,8).join(', ') %></small><% } %>
+          </div>
+        </div>
+        <pre class="v31-answer"><%= result.answer %></pre>
+      </section>
+      <section class="v31-panel v311-source-panel v312-source-panel">
+        <h2>Sources</h2>
+        <p class="simple-muted">Only sources that matched the topic strongly are shown here.</p>
+        <div class="v31-list inline">
+          <% (result.sources || []).forEach(function(s){ %>
+            <a class="v31-chip-card" href="<%= s.href || '#' %>">
+              <strong><%= s.type %>: <%= s.title %></strong>
+              <small><%= s.date ? new Date(s.date).toLocaleString('en-IN') : '' %><%= s.score ? ' · relevance ' + s.score : '' %></small>
+            </a>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
+  </main><footer class="ms-minutes-footer">🐣 tiny meeting magic · (c) Karthik</footer>
+</section>
+<script>
+(function(){
+  document.querySelectorAll('[data-fill-topic]').forEach(btn => btn.addEventListener('click', function(){
+    const input = document.querySelector('.v311-topic-field input');
+    if(input){ input.value = btn.getAttribute('data-fill-topic') || ''; input.focus(); }
+  }));
+
+  const quickInput = document.querySelector('input[name="quickRange"]');
+  const fromInput = document.querySelector('input[name="from"]');
+  const toInput = document.querySelector('input[name="to"]');
+  function toDateValue(d){
+    const pad = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+  document.querySelectorAll('[data-quick-range]').forEach(btn => btn.addEventListener('click', function(){
+    const value = btn.getAttribute('data-quick-range') || '';
+    const days = parseInt(value, 10) || 0;
+    if (quickInput) quickInput.value = value;
+    document.querySelectorAll('[data-quick-range]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (days && fromInput && toInput) {
+      const end = new Date();
+      const start = new Date();
+      start.setDate(end.getDate() - days + 1);
+      fromInput.value = toDateValue(start);
+      toInput.value = toDateValue(end);
+    }
+  }));
+  [fromInput, toInput].filter(Boolean).forEach(input => input.addEventListener('change', function(){
+    if (quickInput) quickInput.value = '';
+    document.querySelectorAll('[data-quick-range]').forEach(b => b.classList.remove('active'));
+  }));
+})();
+</script>

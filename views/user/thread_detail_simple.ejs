@@ -1,0 +1,703 @@
+<% layout('layout') %>
+
+<section class="simple-page simple-thread-detail-page has-ms-footer">
+  <%- include('../partials/user_topbar_simple', { activeNav: 'threads', showBack: true }) %>
+  <main class="simple-page-main">
+    <section class="simple-page-hero compact thread-detail-hero">
+      <p class="simple-eyebrow">Thread</p>
+      <div class="simple-title-row">
+        <div>
+          <h1><%= thread.name %></h1>
+          <p><%= thread.objective || thread.description || 'No objective added yet.' %></p>
+        </div>
+        <div class="thread-top-actions">
+          <span class="thread-status big thread-tone-<%= thread.statusTone %>"><%= thread.statusLabel %></span>
+          <% if (canManageThread) { %><button type="button" class="meeting-action js-open-manage-thread-modal">⚙ Manage thread</button><% } %>
+          <button type="button" class="meeting-action js-open-collaborators-modal">＋ Add collaborators</button>
+        </div>
+      </div>
+      <% const collaboratorList = Array.from(new Set([thread.ownerEmail].concat(thread.contributorEmails || [], thread.memberEmails || []).filter(Boolean))); %>
+      <% if (collaboratorList.length) { %>
+        <div class="thread-collaborator-strip">
+          <span>Collaborators</span>
+          <% collaboratorList.slice(0, 8).forEach(function(email){ %><b><%= email %></b><% }) %>
+          <% if (collaboratorList.length > 8) { %><em>+<%= collaboratorList.length - 8 %> more</em><% } %>
+        </div>
+      <% } %>
+      <% if (issueSubmitted) { %><div class="simple-alert ok">Thanks — issue logged for admin review.</div><% } %>
+      <% if (thread.freshness) { %><div class="v30-thread-freshness <%= thread.freshness.tone %>"><strong><%= thread.freshness.label %></strong><span><%= thread.freshness.hint %> · last updated <%= thread.updatedLabel %></span></div><% } %>
+    </section>
+
+    <section class="thread-stats-row" aria-label="Thread stats">
+      <div><strong><%= thread.meetingCount %></strong><span>Linked meetings</span></div>
+      <div><strong><%= thread.openActions %></strong><span>Open actions</span></div>
+      <div><strong><%= thread.openRisks %></strong><span>Risks</span></div>
+      <div><strong><%= thread.decisions %></strong><span>Decisions</span></div>
+    </section>
+
+    <section class="thread-quick-card" aria-label="Quick thread intelligence">
+      <div>
+        <p class="simple-eyebrow">Quick intelligence</p>
+        <h2>Ask Ms. Minutes about this thread</h2>
+      </div>
+      <div class="thread-quick-actions">
+        <button type="button" class="thread-quick-btn" data-kind="last">💬 Last meeting?</button>
+        <button type="button" class="thread-quick-btn" data-kind="changed">🔁 What changed?</button>
+        <button type="button" class="thread-quick-btn" data-kind="actions">🎯 Follow-ups</button>
+        <button type="button" class="thread-quick-btn" data-kind="progress">📈 Recent progress</button>
+        <button type="button" class="thread-quick-btn" data-kind="risks">⚠️ Risks / decisions</button>
+      </div>
+    </section>
+
+    <section class="thread-create-card thread-note-card v279-note-launch">
+      <div>
+        <h2>Thread notes</h2>
+        <p>Add a shared note, personal note, follow-up, discussion, MoM, or progress update. Personal notes stay visible only to you.</p>
+      </div>
+      <button type="button" class="thread-create-submit js-open-note-modal">＋ Add Note</button>
+    </section>
+
+    <section class="thread-detail-grid">
+      <article class="thread-panel">
+        <div class="thread-panel-head">
+          <h2>Linked meetings</h2>
+          <button type="button" class="meeting-action primary js-open-add-meetings compact-add-meetings">＋ Add</button>
+        </div>
+        <% if (thread.recurringChain && thread.recurringChain.enabled) { %>
+          <div class="v29-autolink-card">
+            <div>
+              <strong>Recurring auto-link is on</strong>
+              <small>Matching similar future transcript meetings using “<%= thread.recurringChain.subjectKey || thread.name %>”. Last checked: <%= thread.recurringChain.lastConnectedAt ? fmtTime(thread.recurringChain.lastConnectedAt) : 'not yet' %>.<% if (autoLinkResult && autoLinkResult.added) { %> Added <%= autoLinkResult.added %> new meeting(s) on this load.<% } %></small>
+            </div>
+            <div class="v29-autolink-actions">
+              <form method="POST" action="/user/threads/<%= thread._id %>/auto-link-check" data-loading-message="Checking for new recurring meetings…"><button class="meeting-action" type="submit">Check now</button></form>
+              <form method="POST" action="/user/threads/<%= thread._id %>/auto-link-off" onsubmit="return confirm('Turn off recurring auto-link for this thread?')"><button class="meeting-action" type="submit">Turn off</button></form>
+            </div>
+          </div>
+        <% } %>
+        <div class="v29-import-card">
+          <div>
+            <strong>Import an invite</strong>
+            <small>Use this when an older or forwarded meeting was not in your calendar.</small>
+          </div>
+          <form method="POST" action="/user/meetings/import-ics" enctype="multipart/form-data" data-loading-message="Importing invite into this thread…">
+            <input type="hidden" name="threadId" value="<%= thread._id %>" />
+            <input type="hidden" name="returnTo" value="/user/threads/<%= thread._id %>" />
+            <label class="v291-file-picker">
+              <input type="file" name="calendarFile" accept=".ics,.ical" required />
+              <span class="v291-file-button">Choose .ics</span>
+              <em class="v291-file-name">No file chosen</em>
+            </label>
+            <button class="meeting-action primary" type="submit">Import .ics</button>
+          </form>
+        </div>
+        <% if (!meetings || !meetings.length) { %>
+          <div class="v30-empty-state"><strong>No meetings linked yet</strong><p>Add one meeting to give this thread a memory.</p><button type="button" class="meeting-action primary js-open-add-meetings">＋ Add meeting</button></div>
+        <% } else { %>
+          <div class="thread-list-stack">
+            <% meetings.forEach(function(m){ %>
+              <a class="thread-meeting-row" href="/user/transcript/saved/<%= m._id %>/summary">
+                <strong><%= m.subject || 'Meeting' %></strong>
+                <span><%= m.startDateTime ? new Date(m.startDateTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '' %></span>
+              </a>
+            <% }) %>
+          </div>
+        <% } %>
+      </article>
+
+      <article class="thread-panel">
+        <h2>Recent thread context</h2>
+        <% if (!entries || !entries.length) { %>
+          <div class="v30-empty-state"><strong>No context yet</strong><p>Add a note, MoM, follow-up, or progress update so Intelligence has something useful to work with.</p><button type="button" class="meeting-action primary js-open-note-modal">＋ Add Note</button></div>
+        <% } else { %>
+          <div class="thread-list-stack">
+            <% entries.forEach(function(e){ %>
+              <div class="thread-entry-row <%= e.visibility === 'private' ? 'private-entry' : '' %>">
+                <div>
+                  <span><%= e.visibility === 'private' ? 'personal note' : ({ follow_up: 'follow-up', moms: 'MoMs', discussion: 'discussion', progress: 'progress' }[e.kind] || e.kind || 'note') %></span>
+                  <strong><%= e.title || e.body || 'Context added' %></strong>
+                  <% if (e.linkedMeetingLabel) { %><em class="v292-linked-meeting-chip">↳ <%= e.linkedMeetingLabel %></em><% } %>
+                </div>
+                <% if (e.body && e.title) { %>
+                  <div class="thread-entry-rich v292-note-preview"><%- e.body %></div>
+                  <button type="button" class="v292-note-toggle" hidden>Show more</button>
+                <% } %>
+                <small><%= fmtTime(e.createdAt) %><% if (e.visibility === 'private') { %> · visible only to you<% } %><% if (e.synthetic) { %> · linked meeting summary<% } %></small>
+                <% if (e.canEditEntry) { %>
+                  <div class="v313-note-actions">
+                    <button type="button" class="meeting-action js-edit-thread-note" data-entry-id="<%= e._id %>" data-title="<%= e.title || '' %>" data-body="<%= e.body || '' %>" data-status="<%= e.status || '' %>" data-severity="<%= e.severity || '' %>">Edit</button>
+                    <form method="POST" action="/user/threads/<%= thread._id %>/notes/<%= e._id %>/delete" onsubmit="return confirm('Delete this note?');"><button class="meeting-action danger" type="submit">Delete</button></form>
+                  </div>
+                <% } %>
+                <% if (e.files && e.files.length) { %>
+                  <div class="thread-entry-files">
+                    <% e.files.forEach(function(file){ %>
+                      <a href="<%= file.path %>" target="_blank" rel="noopener">📎 <%= file.originalName || file.fileName || 'Attachment' %></a>
+                    <% }) %>
+                  </div>
+                <% } %>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+      </article>
+    </section>
+  </main>
+
+  <div id="threadQuickModal" class="thread-modal" aria-hidden="true">
+    <div class="thread-modal-backdrop js-close-thread-quick"></div>
+    <section class="thread-modal-card thread-quick-modal-card" role="dialog" aria-modal="true" aria-labelledby="threadQuickTitle">
+      <button type="button" class="thread-modal-close js-close-thread-quick" aria-label="Close">×</button>
+      <div class="thread-modal-head">
+        <span>✨</span>
+        <div>
+          <p class="simple-eyebrow">Thread intelligence</p>
+          <h2 id="threadQuickTitle">Ms. Minutes is thinking…</h2>
+          <p id="threadQuickSub">Using linked meetings and thread notes.</p>
+        </div>
+      </div>
+      <div id="threadQuickBody" class="thread-quick-body">
+        <div class="thread-collab-loading">Loading insight…</div>
+      </div>
+      <div class="ai-caveat-card thread-quick-caveat">
+        <strong>🤖 AI note</strong>
+        <p>Useful, fast, and occasionally confidently silly. Please sanity-check before turning this into a decision.</p>
+      </div>
+      <div class="thread-modal-actions">
+        <button type="button" class="meeting-action" data-open-issue-modal="threadIssueModal">Report issue</button>
+        <button type="button" class="meeting-action js-close-thread-quick">Close</button>
+      </div>
+    </section>
+  </div>
+
+  <% if (canManageThread) { %>
+  <div id="manageThreadModal" class="thread-modal" aria-hidden="true">
+    <div class="thread-modal-backdrop js-close-manage-thread-modal"></div>
+    <section class="thread-modal-card manage-thread-modal-card" role="dialog" aria-modal="true" aria-labelledby="manageThreadTitle">
+      <button type="button" class="thread-modal-close js-close-manage-thread-modal" aria-label="Close">×</button>
+      <div class="thread-modal-head">
+        <span>⚙</span>
+        <div>
+          <p class="simple-eyebrow">Creator controls</p>
+          <h2 id="manageThreadTitle">Manage this thread</h2>
+          <p>Edit the thread, remove collaborators, or delete it. These controls are available only to the person who created/owns the thread.</p>
+        </div>
+      </div>
+      <form method="POST" action="/user/threads/<%= thread._id %>/update-simple" class="thread-modal-form manage-thread-form">
+        <label>
+          <span>Thread name</span>
+          <input name="name" value="<%= thread.name || '' %>" required />
+        </label>
+        <label>
+          <span>Objective / outcome</span>
+          <textarea name="objective" rows="3" placeholder="What is this thread trying to achieve?"><%= thread.objective || thread.description || '' %></textarea>
+        </label>
+        <div class="thread-create-inline">
+          <label>
+            <span>Client / area</span>
+            <input name="clientName" value="<%= thread.clientName || '' %>" />
+          </label>
+          <label>
+            <span>Status</span>
+            <select name="status">
+              <% ['Active','At Risk','Blocked','Closed'].forEach(function(st){ %>
+                <option value="<%= st %>" <%= thread.statusLabel === st ? 'selected' : '' %>><%= st %></option>
+              <% }) %>
+            </select>
+          </label>
+        </div>
+        <div class="thread-modal-actions">
+          <button type="button" class="meeting-action js-close-manage-thread-modal">Cancel</button>
+          <button type="submit" class="thread-create-submit">Save thread →</button>
+        </div>
+      </form>
+
+      <div class="manage-thread-section">
+        <h3>Remove collaborators</h3>
+        <p>Owner cannot be removed. Removed collaborators will lose access to this thread.</p>
+        <% const removableCollaborators = collaboratorList.filter(function(email){ return String(email || '').toLowerCase() !== String(thread.ownerEmail || '').toLowerCase(); }); %>
+        <% if (!removableCollaborators.length) { %>
+          <div class="thread-muted">No removable collaborators yet.</div>
+        <% } else { %>
+          <div class="manage-collab-list">
+            <% removableCollaborators.forEach(function(email){ %>
+              <form method="POST" action="/user/threads/<%= thread._id %>/collaborators/remove" onsubmit="return confirm('Remove <%= email %> from this thread?');">
+                <span><%= email %></span>
+                <input type="hidden" name="email" value="<%= email %>" />
+                <button type="submit">Remove</button>
+              </form>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+
+      <form method="POST" action="/user/threads/<%= thread._id %>/delete-simple" class="delete-thread-form" onsubmit="return confirm('Delete this thread? It will disappear for collaborators.');">
+        <div>
+          <h3>Delete thread</h3>
+          <p>Use this only for accidental or duplicate threads. Linked meetings and transcripts are not deleted.</p>
+        </div>
+        <button type="submit">Delete thread</button>
+      </form>
+    </section>
+  </div>
+  <% } %>
+
+  <div id="addCollaboratorsModal" class="thread-modal" aria-hidden="true">
+    <div class="thread-modal-backdrop js-close-collaborators-modal"></div>
+    <section class="thread-modal-card" role="dialog" aria-modal="true" aria-labelledby="addCollaboratorsTitle">
+      <button type="button" class="thread-modal-close js-close-collaborators-modal" aria-label="Close">×</button>
+      <div class="thread-modal-head">
+        <span>👥</span>
+        <div>
+          <p class="simple-eyebrow">Collaborators</p>
+          <h2 id="addCollaboratorsTitle">Add people to this thread</h2>
+          <p>Search registered users from your workspace by typing 3+ letters. Any existing collaborator can add more collaborators.</p>
+        </div>
+      </div>
+      <form method="POST" action="/user/threads/<%= thread._id %>/collaborators" data-loading-message="Adding collaborators…" class="thread-modal-form" id="addCollaboratorsForm">
+        <label class="thread-collab-field">
+          <span>Find collaborators</span>
+          <div class="thread-collab-box">
+            <input id="threadDetailCollabSearch" type="search" placeholder="Type 3+ letters from name or email..." autocomplete="off" />
+            <div id="threadDetailCollabResults" class="thread-collab-results hidden"></div>
+            <div id="threadDetailCollabChips" class="thread-collab-chips"></div>
+          </div>
+          <small>Only registered users from the same org / tenant are shown.</small>
+          <input type="hidden" name="people" id="threadDetailPeopleInput" />
+        </label>
+        <div class="thread-modal-actions">
+          <button type="button" class="meeting-action js-close-collaborators-modal">Cancel</button>
+          <button type="submit" class="thread-create-submit">Add collaborators →</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div id="threadNoteModal" class="thread-modal" aria-hidden="true">
+    <div class="thread-modal-backdrop js-close-note-modal"></div>
+    <section class="thread-modal-card thread-note-modal-card" role="dialog" aria-modal="true" aria-labelledby="threadNoteTitle">
+      <button type="button" class="thread-modal-close js-close-note-modal" aria-label="Close">×</button>
+      <div class="thread-modal-head">
+        <span>📝</span>
+        <div>
+          <p class="simple-eyebrow">Thread note</p>
+          <h2 id="threadNoteTitle">Add a useful update</h2>
+          <p>Select the type first. Ms. Minutes will adjust the form so the note is captured cleanly.</p>
+        </div>
+      </div>
+      <form method="POST" action="/user/threads/<%= thread._id %>/notes" data-loading-message="Saving your thread note…" class="thread-modal-form" id="threadNoteForm" enctype="multipart/form-data">
+        <input type="hidden" name="kind" id="threadNoteKind" value="note" />
+        <input type="hidden" name="visibility" id="threadNoteVisibility" value="thread" />
+        <div class="v279-type-grid" role="tablist" aria-label="Note type">
+          <button type="button" class="v279-type-card active" data-kind="note" data-visibility="thread" data-title="Note" data-body="Write the note or context to share with collaborators." data-owner="false" data-severity="false"><span>📝</span><strong>Note</strong></button>
+          <button type="button" class="v279-type-card" data-kind="personal_note" data-visibility="private" data-title="Personal note" data-body="Write your private note. Only you can see this." data-owner="false" data-severity="false"><span>🔒</span><strong>Personal note</strong></button>
+          <button type="button" class="v279-type-card" data-kind="follow_up" data-visibility="thread" data-title="Follow-up" data-body="What follow-up is needed? Add owner, status, and severity if useful." data-owner="true" data-severity="true"><span>🎯</span><strong>Follow-up</strong></button>
+          <button type="button" class="v279-type-card" data-kind="discussion" data-visibility="thread" data-title="Discussion" data-body="Capture the discussion, viewpoints, options, or disagreement." data-owner="false" data-severity="false"><span>💬</span><strong>Discussion</strong></button>
+          <button type="button" class="v279-type-card" data-kind="moms" data-visibility="thread" data-title="MoMs" data-body="Add minutes of meeting style notes, decisions, and follow-ups." data-owner="true" data-severity="false"><span>📋</span><strong>MoMs</strong></button>
+          <button type="button" class="v279-type-card" data-kind="progress" data-visibility="thread" data-title="Progress" data-body="What progressed, what changed, and what is the next step?" data-owner="false" data-severity="false"><span>📈</span><strong>Progress</strong></button>
+        </div>
+        <label>
+          <span>Title</span>
+          <input name="title" id="threadNoteTitleInput" placeholder="Short title" />
+        </label>
+        <label>
+          <span>Related meeting, optional</span>
+          <select name="linkedTranscriptId" id="threadNoteLinkedMeeting">
+            <option value="">General thread update</option>
+            <% (meetings || []).forEach(function(m){ %>
+              <option value="<%= m._id %>"><%= m.subject || 'Meeting' %><%= m.startDateTime ? ' — ' + new Date(m.startDateTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '' %></option>
+            <% }) %>
+          </select>
+          <small class="v292-field-help">Use this when the update follows from a point discussed in a specific meeting.</small>
+        </label>
+        <label class="rich-note-label">
+          <span>Details</span>
+          <div class="rich-note-toolbar" aria-label="Rich text toolbar">
+            <button type="button" data-cmd="bold"><b>B</b></button>
+            <button type="button" data-cmd="italic"><i>I</i></button>
+            <button type="button" data-cmd="insertUnorderedList">• List</button>
+            <button type="button" data-cmd="insertOrderedList">1. List</button>
+            <button type="button" data-cmd="removeFormat">Clear</button>
+          </div>
+          <div id="threadNoteBodyEditor" class="rich-note-editor" contenteditable="true" data-placeholder="Write the note or context to share with collaborators."></div>
+          <input type="hidden" name="body" id="threadNoteBodyInput" required />
+        </label>
+        <label class="thread-note-file-field">
+          <span>Attachment, optional</span>
+          <input type="file" name="files" multiple />
+          <small>Attach txt, md, pdf, Office docs, or images. Personal note attachments stay private with the note.</small>
+        </label>
+        <div class="thread-create-inline v279-note-dynamic-fields">
+          <label id="threadNoteOwnerWrap">
+            <span>Owner / person, optional</span>
+            <input name="ownerEmail" placeholder="email@example.com" />
+          </label>
+          <label id="threadNoteStatusWrap">
+            <span>Status, optional</span>
+            <input name="status" placeholder="Open / In progress / Done" />
+          </label>
+          <label id="threadNoteSeverityWrap">
+            <span>Severity</span>
+            <select name="severity">
+              <option value="">None</option>
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+              <option>Critical</option>
+            </select>
+          </label>
+        </div>
+        <div class="thread-modal-actions">
+          <button type="button" class="meeting-action js-close-note-modal">Cancel</button>
+          <button type="submit" class="thread-create-submit">Save note →</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+
+  <div id="editThreadNoteModal" class="thread-modal" aria-hidden="true">
+    <div class="thread-modal-backdrop js-close-edit-note-modal"></div>
+    <section class="thread-modal-card thread-note-modal-card" role="dialog" aria-modal="true" aria-labelledby="editThreadNoteTitle">
+      <button type="button" class="thread-modal-close js-close-edit-note-modal" aria-label="Close">×</button>
+      <div class="thread-modal-head"><span>✏️</span><div><p class="simple-eyebrow">Edit note</p><h2 id="editThreadNoteTitle">Update your note</h2><p>You can edit or delete only notes you created.</p></div></div>
+      <form method="POST" action="#" class="thread-modal-form" id="editThreadNoteForm" data-loading-message="Updating your note…">
+        <label><span>Title</span><input name="title" id="editThreadNoteTitleInput" /></label>
+        <label class="rich-note-label"><span>Details</span><textarea name="body" id="editThreadNoteBodyInput" rows="8" required></textarea></label>
+        <div class="thread-create-inline">
+          <label><span>Status</span><input name="status" id="editThreadNoteStatusInput" /></label>
+          <label><span>Severity</span><select name="severity" id="editThreadNoteSeverityInput"><option value="">None</option><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select></label>
+        </div>
+        <div class="thread-modal-actions"><button type="button" class="meeting-action js-close-edit-note-modal">Cancel</button><button type="submit" class="thread-create-submit">Save changes →</button></div>
+      </form>
+    </section>
+  </div>
+
+  <div id="addMeetingsModal" class="thread-modal" aria-hidden="true">
+    <div class="thread-modal-backdrop js-close-add-meetings"></div>
+    <section class="thread-modal-card add-meetings-modal-card" role="dialog" aria-modal="true" aria-labelledby="addMeetingsTitle">
+      <button type="button" class="thread-modal-close js-close-add-meetings" aria-label="Close">×</button>
+      <div class="thread-modal-head">
+        <span>📅</span>
+        <div>
+          <p class="simple-eyebrow">Add meetings</p>
+          <h2 id="addMeetingsTitle">Link meetings to this thread</h2>
+          <p>Search 3+ letters. Select one or more meetings. Recurring mode adds similar meeting titles automatically.</p>
+        </div>
+      </div>
+      <form method="POST" action="/user/threads/<%= thread._id %>/link-meetings-simple" data-loading-message="Linking meetings to this thread…" class="thread-modal-form" id="addMeetingsForm">
+        <label>
+          <span>Find meetings</span>
+          <div class="thread-collab-box">
+            <input id="meetingSearchInput" type="search" placeholder="Type 3+ letters from the meeting title..." autocomplete="off" />
+            <div id="meetingSearchResults" class="thread-collab-results hidden"></div>
+            <div id="meetingSelectedChips" class="thread-collab-chips"></div>
+          </div>
+        </label>
+        <input type="hidden" name="meetingIds" id="meetingIdsInput" />
+        <label class="thread-check-row">
+          <input type="checkbox" name="addRecurring" value="1" />
+          <span>Auto-link future recurring meetings with the same / similar title</span>
+        </label>
+        <div class="thread-modal-actions">
+          <button type="button" class="meeting-action js-close-add-meetings">Cancel</button>
+          <button type="submit" class="thread-create-submit">Add meetings →</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+
+  <div id="threadIssueModal" class="thread-modal" aria-hidden="true">
+    <div class="thread-modal-backdrop" data-close-issue-modal="threadIssueModal"></div>
+    <section class="thread-modal-card" role="dialog" aria-modal="true" aria-labelledby="threadIssueTitle">
+      <button type="button" class="thread-modal-close" data-close-issue-modal="threadIssueModal" aria-label="Close">×</button>
+      <div class="thread-modal-head"><span>🚩</span><div><p class="simple-eyebrow">Report issue</p><h2 id="threadIssueTitle">Something odd in this thread?</h2><p>Log wrong intelligence, permissions, or missing context for admin review.</p></div></div>
+      <form method="POST" action="/user/issues" class="thread-modal-form" data-loading-message="Logging the issue…">
+        <input type="hidden" name="targetType" value="thread" />
+        <input type="hidden" name="targetId" value="<%= thread._id %>" />
+        <input type="hidden" name="targetTitle" value="<%= thread.name %>" />
+        <input type="hidden" name="returnTo" value="/user/threads/<%= thread._id %>" />
+        <label><span>Issue type</span><select name="issueType"><option value="bad_thread_intelligence">Bad thread intelligence</option><option value="permission_issue">Permission issue</option><option value="wrong_meeting">Wrong meeting/context</option><option value="other">Other</option></select></label>
+        <label><span>What should we know?</span><textarea name="details" rows="5" placeholder="Example: Last Meeting is pulling a system event, not the real meeting context."></textarea></label>
+        <div class="thread-modal-actions"><button type="button" class="meeting-action" data-close-issue-modal="threadIssueModal">Cancel</button><button class="thread-create-submit" type="submit">Log issue →</button></div>
+      </form>
+    </section>
+  </div>
+
+  <footer class="ms-minutes-footer">🐣 tiny meeting magic · (c) Karthik</footer>
+</section>
+
+<script>
+(function(){
+  const modal = document.getElementById('threadQuickModal');
+  const title = document.getElementById('threadQuickTitle');
+  const body = document.getElementById('threadQuickBody');
+  const closeBtns = document.querySelectorAll('.js-close-thread-quick');
+  function escapeHtml(v){ return String(v || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  function renderMarkdownish(text){
+    const lines = String(text || '').split(/\r?\n/);
+    return lines.map(line => {
+      const t = line.trim();
+      if(!t) return '<br/>';
+      if(/^#{1,3}\s+/.test(t)) return '<h3>'+escapeHtml(t.replace(/^#{1,3}\s+/,''))+'</h3>';
+      if(/^[-•]\s+/.test(t)) return '<p class="quick-bullet">• '+escapeHtml(t.replace(/^[-•]\s+/,''))+'</p>';
+      return '<p>'+escapeHtml(t)+'</p>';
+    }).join('');
+  }
+  function open(){ modal?.classList.add('open'); modal?.setAttribute('aria-hidden','false'); }
+  function close(){ modal?.classList.remove('open'); modal?.setAttribute('aria-hidden','true'); }
+  closeBtns.forEach(btn => btn.addEventListener('click', close));
+  function renderMeta(data, kind){
+    const generated = data && data.generatedAtLabel ? ('Generated: ' + data.generatedAtLabel + (data.cached ? ' · saved answer' : ' · refreshed answer')) : '';
+    if(!generated) return '';
+    return '<div class="v29-generated-meta"><span>'+escapeHtml(generated)+'</span><button type="button" class="js-review-thread-intel" data-status="reviewed">Looks good</button><button type="button" class="js-review-thread-intel" data-status="needs_correction">Needs correction</button><button type="button" class="js-refresh-thread-intel">Refresh answer</button></div>';
+  }
+  let currentCacheId = '';
+  async function markReview(status){
+    if(!currentCacheId || !body) return;
+    try{
+      const res = await fetch('/user/intelligence-cache/' + encodeURIComponent(currentCacheId) + '/review', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'status=' + encodeURIComponent(status) });
+      const data = await res.json();
+      if(data.ok){ const note=document.createElement('div'); note.className='v30-review-inline'; note.textContent = status === 'reviewed' ? 'Reviewed ✓' : 'Marked for correction'; body.appendChild(note); }
+    }catch(e){}
+  }
+  async function loadQuick(kind, refresh){
+    open();
+    const btn = document.querySelector('.thread-quick-btn[data-kind="'+CSS.escape(kind)+'"]');
+    if(title) title.textContent = btn ? btn.textContent.replace(/^[^A-Za-z]+/, '').trim() : 'Thread insight';
+    if(body) body.innerHTML = '<div class="thread-collab-loading">Ms. Minutes is reading the thread…</div>';
+    try{
+      const res = await fetch('/user/threads/<%= thread._id %>/quick-context?kind=' + encodeURIComponent(kind) + (refresh ? '&refresh=1' : ''));
+      const data = await res.json();
+      if(title) title.textContent = data.title || 'Thread insight';
+      currentCacheId = data.cacheId || '';
+      if(body) body.innerHTML = data.ok ? (renderMarkdownish(data.answer || '') + renderMeta(data, kind)) : '<p>Could not load this insight.</p>';
+      body?.querySelector('.js-refresh-thread-intel')?.addEventListener('click', () => loadQuick(kind, true));
+      body?.querySelectorAll('.js-review-thread-intel').forEach(b=>b.addEventListener('click',()=>markReview(b.dataset.status || 'reviewed')));
+    }catch(e){
+      if(body) body.innerHTML = '<p>Could not load this insight just now.</p>';
+    } finally { }
+  }
+  document.querySelectorAll('.thread-quick-btn').forEach(btn => btn.addEventListener('click', () => loadQuick(btn.dataset.kind || 'last', false)));
+})();
+
+(function(){
+  const modal = document.getElementById('threadNoteModal');
+  const openBtns = document.querySelectorAll('.js-open-note-modal');
+  const closeBtns = document.querySelectorAll('.js-close-note-modal');
+  const kindInput = document.getElementById('threadNoteKind');
+  const visInput = document.getElementById('threadNoteVisibility');
+  const titleInput = document.getElementById('threadNoteTitleInput');
+  const bodyInput = document.getElementById('threadNoteBodyInput');
+  const bodyEditor = document.getElementById('threadNoteBodyEditor');
+  const ownerWrap = document.getElementById('threadNoteOwnerWrap');
+  const statusWrap = document.getElementById('threadNoteStatusWrap');
+  const severityWrap = document.getElementById('threadNoteSeverityWrap');
+
+  function open(){ modal?.classList.add('open'); modal?.setAttribute('aria-hidden','false'); setTimeout(()=>bodyEditor?.focus(),80); }
+  function close(){ modal?.classList.remove('open'); modal?.setAttribute('aria-hidden','true'); }
+  openBtns.forEach(btn => btn.addEventListener('click', open));
+  closeBtns.forEach(btn => btn.addEventListener('click', close));
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') close(); });
+
+  function selectType(btn){
+    document.querySelectorAll('.v279-type-card').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if(kindInput) kindInput.value = btn.dataset.kind || 'note';
+    if(visInput) visInput.value = btn.dataset.visibility || 'thread';
+    if(titleInput && !titleInput.value.trim()) titleInput.value = btn.dataset.title || '';
+    if(bodyEditor) bodyEditor.dataset.placeholder = btn.dataset.body || 'Write the update.';
+    const needsOwner = btn.dataset.owner === 'true';
+    const needsSeverity = btn.dataset.severity === 'true';
+    ownerWrap?.classList.toggle('muted-field', !needsOwner);
+    statusWrap?.classList.toggle('muted-field', !(needsOwner || btn.dataset.kind === 'progress'));
+    severityWrap?.classList.toggle('muted-field', !needsSeverity);
+  }
+  document.querySelectorAll('.v279-type-card').forEach(btn => btn.addEventListener('click', () => selectType(btn)));
+  const active = document.querySelector('.v279-type-card.active');
+  if(active) selectType(active);
+
+  document.querySelectorAll('.rich-note-toolbar button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      bodyEditor?.focus();
+      document.execCommand(btn.dataset.cmd, false, null);
+    });
+  });
+
+  function sanitizeRichNote(html){
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html || '';
+    wrapper.querySelectorAll('script,style,iframe,object,embed').forEach(el => el.remove());
+    wrapper.querySelectorAll('*').forEach(el => {
+      [...el.attributes].forEach(attr => {
+        if(/^on/i.test(attr.name) || ['style','class','id'].includes(attr.name.toLowerCase())) el.removeAttribute(attr.name);
+      });
+    });
+    return wrapper.innerHTML.trim();
+  }
+  document.getElementById('threadNoteForm')?.addEventListener('submit', (e) => {
+    if(bodyInput && bodyEditor){
+      bodyInput.value = sanitizeRichNote(bodyEditor.innerHTML);
+      if(!bodyEditor.textContent.trim()){
+        e.preventDefault();
+        bodyEditor.focus();
+      }
+    }
+  });
+})();
+
+(function(){
+  const modal = document.getElementById('editThreadNoteModal');
+  const form = document.getElementById('editThreadNoteForm');
+  const title = document.getElementById('editThreadNoteTitleInput');
+  const body = document.getElementById('editThreadNoteBodyInput');
+  const status = document.getElementById('editThreadNoteStatusInput');
+  const severity = document.getElementById('editThreadNoteSeverityInput');
+  function decodeHtml(v){ const ta=document.createElement('textarea'); ta.innerHTML=v || ''; return ta.value; }
+  function open(btn){
+    if(!modal || !form) return;
+    const id = btn.dataset.entryId || '';
+    form.action = '/user/threads/<%= thread._id %>/notes/' + encodeURIComponent(id) + '/update';
+    title.value = decodeHtml(btn.dataset.title || '');
+    body.value = decodeHtml(btn.dataset.body || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+    status.value = decodeHtml(btn.dataset.status || '');
+    severity.value = decodeHtml(btn.dataset.severity || '');
+    modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); setTimeout(()=>title.focus(),80);
+  }
+  function close(){ modal?.classList.remove('open'); modal?.setAttribute('aria-hidden','true'); }
+  document.querySelectorAll('.js-edit-thread-note').forEach(btn => btn.addEventListener('click', () => open(btn)));
+  document.querySelectorAll('.js-close-edit-note-modal').forEach(btn => btn.addEventListener('click', close));
+})();
+
+(function(){
+  const modal = document.getElementById('manageThreadModal');
+  const openBtn = document.querySelector('.js-open-manage-thread-modal');
+  const closeBtns = document.querySelectorAll('.js-close-manage-thread-modal');
+  function open(){ modal?.classList.add('open'); modal?.setAttribute('aria-hidden','false'); }
+  function close(){ modal?.classList.remove('open'); modal?.setAttribute('aria-hidden','true'); }
+  openBtn?.addEventListener('click', open);
+  closeBtns.forEach(btn => btn.addEventListener('click', close));
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') close(); });
+})();
+
+(function(){
+  const modal = document.getElementById('addCollaboratorsModal');
+  const openBtn = document.querySelector('.js-open-collaborators-modal');
+  const closeBtns = document.querySelectorAll('.js-close-collaborators-modal');
+  const search = document.getElementById('threadDetailCollabSearch');
+  const results = document.getElementById('threadDetailCollabResults');
+  const chips = document.getElementById('threadDetailCollabChips');
+  const input = document.getElementById('threadDetailPeopleInput');
+  const selected = new Map();
+  const existing = new Set(<%- JSON.stringify(collaboratorList.map(function(x){ return String(x || '').toLowerCase(); })) %>);
+  let timer = null;
+  function escapeHtml(v){ return String(v || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  function open(){ modal?.classList.add('open'); modal?.setAttribute('aria-hidden','false'); setTimeout(()=>search?.focus(),80); }
+  function close(){ modal?.classList.remove('open'); modal?.setAttribute('aria-hidden','true'); }
+  function sync(){ if(input) input.value = Array.from(selected.keys()).join(','); }
+  function addPerson(person){
+    const email = String(person.email || '').trim().toLowerCase();
+    if(!email || selected.has(email) || existing.has(email)) return;
+    selected.set(email, person);
+    const chip = document.createElement('span');
+    chip.className = 'thread-collab-chip';
+    chip.innerHTML = '<b>'+escapeHtml(person.name || email)+'</b><small>'+escapeHtml(email)+'</small><button type="button">×</button>';
+    chip.querySelector('button')?.addEventListener('click', () => { selected.delete(email); chip.remove(); sync(); });
+    chips?.appendChild(chip);
+    sync();
+  }
+  openBtn?.addEventListener('click', open);
+  closeBtns.forEach(btn => btn.addEventListener('click', close));
+  async function searchPeople(q){
+    if(!results) return;
+    if(q.length < 3){ results.classList.add('hidden'); results.innerHTML=''; return; }
+    results.classList.remove('hidden');
+    results.innerHTML = '<div class="thread-collab-loading">Searching registered users…</div>';
+    try{
+      const res = await fetch('/user/people/search?q=' + encodeURIComponent(q));
+      const data = await res.json();
+      const people = (data.people || []).filter(p => p.email && !selected.has(String(p.email).toLowerCase()) && !existing.has(String(p.email).toLowerCase()));
+      if(!people.length){ results.innerHTML = '<div class="thread-collab-empty">No matching registered users found.</div>'; return; }
+      results.innerHTML = people.map(p => '<button type="button" data-email="'+escapeHtml(p.email)+'" data-name="'+escapeHtml(p.name || p.email)+'"><strong>'+escapeHtml(p.name || p.email)+'</strong><span>'+escapeHtml(p.email)+'</span></button>').join('');
+      results.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+        addPerson({ email: btn.dataset.email, name: btn.dataset.name });
+        search.value=''; results.classList.add('hidden'); results.innerHTML=''; search.focus();
+      }));
+    }catch(e){ results.innerHTML = '<div class="thread-collab-empty">Could not search people.</div>'; }
+  }
+  search?.addEventListener('input', () => { clearTimeout(timer); timer=setTimeout(()=>searchPeople(search.value.trim()),220); });
+})();
+
+(function(){
+  const modal = document.getElementById('addMeetingsModal');
+  const openBtn = document.querySelector('.js-open-add-meetings');
+  const closeBtns = document.querySelectorAll('.js-close-add-meetings');
+  const search = document.getElementById('meetingSearchInput');
+  const results = document.getElementById('meetingSearchResults');
+  const chips = document.getElementById('meetingSelectedChips');
+  const input = document.getElementById('meetingIdsInput');
+  const selected = new Map();
+  let timer = null;
+  function escapeHtml(v){ return String(v || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  function sync(){ if(input) input.value = Array.from(selected.keys()).join(','); }
+  function open(){ modal?.classList.add('open'); modal?.setAttribute('aria-hidden','false'); setTimeout(()=>search?.focus(),80); }
+  function close(){ modal?.classList.remove('open'); modal?.setAttribute('aria-hidden','true'); }
+  openBtn?.addEventListener('click', open);
+  closeBtns.forEach(btn => btn.addEventListener('click', close));
+  function addMeeting(m){
+    if(!m.id || selected.has(m.id)) return;
+    selected.set(m.id, m);
+    const chip = document.createElement('span');
+    chip.className = 'thread-collab-chip';
+    chip.dataset.id = m.id;
+    chip.innerHTML = '<b>'+escapeHtml(m.subject)+'</b><small>'+escapeHtml(m.dateLabel || '')+'</small><button type="button">×</button>';
+    chip.querySelector('button')?.addEventListener('click', () => { selected.delete(m.id); chip.remove(); sync(); });
+    chips?.appendChild(chip);
+    sync();
+  }
+  async function doSearch(q){
+    if(!results) return;
+    if(q.length < 3){ results.classList.add('hidden'); results.innerHTML=''; return; }
+    results.classList.remove('hidden'); results.innerHTML='<div class="thread-collab-loading">Searching meetings…</div>';
+    try{
+      const res = await fetch('/user/threads/<%= thread._id %>/meetings/search?q=' + encodeURIComponent(q));
+      const data = await res.json();
+      const meetings = (data.meetings || []).filter(m => !selected.has(m.id));
+      if(!meetings.length){ results.innerHTML='<div class="thread-collab-empty">No matching meetings found.</div>'; return; }
+      results.innerHTML = meetings.map(m => '<button type="button" data-id="'+escapeHtml(m.id)+'" data-subject="'+escapeHtml(m.subject)+'" data-date="'+escapeHtml(m.dateLabel || '')+'"><strong>'+escapeHtml(m.subject)+'</strong><span>'+escapeHtml(m.dateLabel || '')+'</span></button>').join('');
+      results.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+        addMeeting({ id: btn.dataset.id, subject: btn.dataset.subject, dateLabel: btn.dataset.date });
+        search.value=''; results.classList.add('hidden'); results.innerHTML=''; search.focus();
+      }));
+    }catch(e){ results.innerHTML='<div class="thread-collab-empty">Could not search meetings.</div>'; }
+  }
+  search?.addEventListener('input', () => { clearTimeout(timer); timer=setTimeout(()=>doSearch(search.value.trim()),220); });
+})();
+
+(function(){
+  document.querySelectorAll('.v292-note-preview').forEach(function(box){
+    const btn = box.nextElementSibling && box.nextElementSibling.classList.contains('v292-note-toggle') ? box.nextElementSibling : null;
+    if(!btn) return;
+    requestAnimationFrame(function(){
+      if(box.scrollHeight > 190){
+        box.classList.add('is-collapsed');
+        btn.hidden = false;
+        btn.addEventListener('click', function(){
+          const open = box.classList.toggle('is-open');
+          box.classList.toggle('is-collapsed', !open);
+          btn.textContent = open ? 'Show less' : 'Show more';
+        });
+      }
+    });
+  });
+})();
+
+
+(function(){
+  function open(id){ const m=document.getElementById(id); m?.classList.add('open'); m?.setAttribute('aria-hidden','false'); }
+  function close(id){ const m=document.getElementById(id); m?.classList.remove('open'); m?.setAttribute('aria-hidden','true'); }
+  document.querySelectorAll('[data-open-issue-modal]').forEach(btn=>btn.addEventListener('click',()=>open(btn.dataset.openIssueModal)));
+  document.querySelectorAll('[data-close-issue-modal]').forEach(btn=>btn.addEventListener('click',()=>close(btn.dataset.closeIssueModal)));
+})();
+</script>

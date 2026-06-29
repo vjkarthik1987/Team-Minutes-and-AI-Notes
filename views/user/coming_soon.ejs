@@ -1,0 +1,14 @@
+<% layout('layout') %>
+
+<section class="simple-page simple-coming-page has-ms-footer">
+  <%- include('../partials/user_topbar_simple', { activeNav: '', showBack: true }) %>
+  <main class="simple-page-main">
+    <section class="simple-empty-card simple-coming-card">
+      <p class="simple-eyebrow">Soon</p>
+      <h1><%= heading || 'Coming soon' %></h1>
+      <p><%= message || 'This page will be added after the meetings flow is solid.' %></p>
+      <a href="/user/home">Back home</a>
+    </section>
+  </main>
+  <footer class="ms-minutes-footer">🐣 tiny meeting magic · (c) Karthik</footer>
+</section>

@@ -1,0 +1,29 @@
+<% layout('layout') %>
+<section class="org-auth-screen">
+  <header class="org-auth-topbar">
+    <a class="simple-hub-brand org-admin-brand" href="/auth/login" aria-label="Ms. Minutes Admin login">
+      <span class="ms-brand-face">✎</span><strong>Ms. Minutes</strong><em>Admin</em>
+    </a>
+    <nav class="simple-page-nav org-auth-nav" aria-label="Login navigation">
+      <a href="/user/login">User login</a>
+      <a href="/auth/login">Org login</a>
+    </nav>
+  </header>
+
+  <main class="org-auth-page">
+    <article class="org-auth-card wide">
+      <div class="org-auth-badge">Org signup</div>
+      <h1>Create your Ms. Minutes workspace.</h1>
+      <p class="org-auth-sub">Set up the organisation, allowed domains, and the local org admin login.</p>
+      <form method="POST" action="/auth/signup" class="org-auth-form grid">
+        <label>Org name<input name="name" type="text" required placeholder="SunTec Business Solutions" /></label>
+        <label>Org slug<input name="slug" type="text" required placeholder="suntec" /><small>Lowercase, no spaces. We auto-clean this.</small></label>
+        <label class="span-2">Allowed domains<input name="allowedDomains" type="text" required placeholder="suntecgroup.com, suntecsbs.com" /><small>Comma-separated domains. No @ needed.</small></label>
+        <label>Org login email<input name="loginEmail" type="email" required placeholder="admin@suntecgroup.com" autocomplete="username" /></label>
+        <label>Password<input name="password" type="password" minlength="8" required autocomplete="new-password" /><small>Minimum 8 characters.</small></label>
+        <div class="span-2 org-form-actions"><button type="submit" class="org-primary-btn">Create org <span>→</span></button><a href="/auth/login">Already have an org?</a></div>
+      </form>
+    </article>
+  </main>
+  <footer class="org-auth-footer">🐥 tiny meeting magic · admin cockpit · (c) Karthik</footer>
+</section>

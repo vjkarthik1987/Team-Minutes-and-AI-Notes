@@ -1,0 +1,60 @@
+<% layout('layout') %>
+<section class="page-head">
+  <div>
+    <h1 class="title">Diagnostics</h1>
+    <p class="muted">v19 trust center for Graph, transcript sweep, AI, sessions, and failed jobs.</p>
+  </div>
+  <a class="btn" href="<%= healthUrl %>" target="_blank">Open health JSON</a>
+</section>
+<%- include('../partials/org_admin_nav', { activeOrgNav: typeof activeOrgNav !== 'undefined' ? activeOrgNav : '' }) %>
+<div class="v19-grid">
+  <article class="card v19-status-card">
+    <h2>Core health</h2>
+    <p><strong>Session store:</strong> <%= sessionStore %></p>
+    <p><strong>Microsoft Graph:</strong> <span class="pill <%= graphConfigured ? 'ok' : 'warn' %>"><%= graphConfigured ? 'Configured' : 'Not configured' %></span></p>
+    <p><strong>AI:</strong> <span class="pill <%= openaiConfigured ? 'ok' : 'warn' %>"><%= openaiConfigured ? 'OpenAI key present' : 'OpenAI key missing' %></span></p>
+  </article>
+
+  <article class="card v19-status-card">
+    <h2>Transcript sweep</h2>
+    <p><strong>Meetings with transcript:</strong> <%= transcriptStats.totalMeetingsWithTranscript %></p>
+    <p><strong>Indexed event rows:</strong> <%= transcriptStats.indexedEvents %></p>
+    <p><strong>Failed event rows:</strong> <span class="pill <%= transcriptStats.failedEvents ? 'bad' : 'ok' %>"><%= transcriptStats.failedEvents %></span></p>
+  </article>
+
+  <article class="card v19-status-card">
+    <h2>AI index</h2>
+    <p><strong>Transcript docs:</strong> <%= transcriptStats.totalTranscriptDocs %></p>
+    <p><strong>Indexed docs:</strong> <%= transcriptStats.indexedTranscriptDocs %></p>
+    <p><strong>Failed docs:</strong> <span class="pill <%= transcriptStats.failedTranscriptDocs ? 'bad' : 'ok' %>"><%= transcriptStats.failedTranscriptDocs %></span></p>
+    <form method="POST" action="/org/diagnostics/retry-failed"><button class="btn danger" type="submit">Retry failed transcript/AI jobs</button></form>
+    <% if (typeof retry !== 'undefined') { %><p class="muted">Retry requested.</p><% } %>
+  </article>
+</div>
+
+<section class="card">
+  <h2>Recent transcript sweep state</h2>
+  <table class="v8-table">
+    <thead><tr><th>User</th><th>Status</th><th>Last AI load</th><th>Error</th></tr></thead>
+    <tbody>
+      <% (syncStates || []).forEach(s => { %>
+        <tr><td><%= s.userEmail %></td><td><%= s.lastSyncStatus || 'idle' %></td><td><%= s.lastTranscriptAiLoadAt || s.lastSyncedAt || '-' %></td><td><%= s.lastSyncError || '-' %></td></tr>
+      <% }) %>
+      <% if (!syncStates.length) { %><tr><td colspan="4" class="muted">No sync state yet.</td></tr><% } %>
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>Recent errors</h2>
+  <p><a href="/org/errors">Open full error logs</a></p>
+  <table class="v8-table">
+    <thead><tr><th>Time</th><th>Source</th><th>Route</th><th>Message</th></tr></thead>
+    <tbody>
+      <% recentErrors.forEach(e => { %>
+        <tr><td><%= e.createdAt %></td><td><%= e.source %></td><td><%= e.method %> <%= e.route %></td><td><%= e.message %></td></tr>
+      <% }) %>
+      <% if (!recentErrors.length) { %><tr><td colspan="4" class="muted">No recent errors.</td></tr><% } %>
+    </tbody>
+  </table>
+</section>

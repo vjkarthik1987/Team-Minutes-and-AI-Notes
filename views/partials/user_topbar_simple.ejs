@@ -1,0 +1,20 @@
+<header class="simple-page-topbar ms-user-topbar" data-mobile-menu-root>
+  <a class="simple-hub-brand ms-quirky-brand" href="/user/home" aria-label="Ms. Minutes home">
+    <span class="ms-brand-face">✎</span>
+    <strong>Ms. Minutes</strong>
+  </a>
+  <button class="ms-mobile-menu-toggle" type="button" data-mobile-menu-toggle aria-expanded="false">☰ Menu</button>
+  <nav class="simple-page-nav ms-user-nav" aria-label="Page navigation" data-mobile-menu-panel>
+    <% if (typeof showBack === 'undefined' || showBack) { %><button type="button" onclick="history.back()">← Back</button><% } %>
+    <a class="<%= activeNav === 'home' ? 'active' : '' %>" href="/user/home">⌂ Home</a>
+    <a class="<%= activeNav === 'meetings' ? 'active' : '' %>" href="/user/meetings">Meetings</a>
+    <a class="<%= activeNav === 'threads' ? 'active' : '' %>" href="/user/threads">Threads</a>
+    <a class="<%= activeNav === 'intelligence' ? 'active' : '' %>" href="/user/intelligence">Intelligence</a>
+    <a class="<%= activeNav === 'recall' ? 'active' : '' %>" href="/user/recall">Recall</a>
+    <a class="<%= activeNav === 'assistant' ? 'active' : '' %>" href="/user/assistant">Assistant Desk</a>
+    <a class="<%= activeNav === 'meeting-links' ? 'active' : '' %>" href="/user/meeting-links">Links</a>
+    <a class="<%= activeNav === 'faq' ? 'active' : '' %>" href="/user/faq">FAQ</a>
+    <a class="<%= activeNav === 'settings' ? 'active' : '' %>" href="/user/settings">Settings</a>
+    <form method="POST" action="/user/logout"><button type="submit">Logout</button></form>
+  </nav>
+</header>

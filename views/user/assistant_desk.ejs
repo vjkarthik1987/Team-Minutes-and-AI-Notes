@@ -1,0 +1,49 @@
+<% layout('layout') %>
+<section class="simple-page has-ms-footer v31-page">
+  <%- include('../partials/user_topbar_simple', { activeNav: 'assistant', showBack: true }) %>
+  <main class="simple-page-main">
+    <section class="simple-page-hero compact">
+      <p class="simple-eyebrow">Assistant Desk</p>
+      <div class="simple-title-row"><div><h1>Notes prepared for key people</h1><p>Add questions, prep notes, reminders and watchouts without needing access to private transcripts.</p></div><a class="meeting-action" href="/user/settings#assistant-desk">Manage assistants</a></div>
+    </section>
+
+    <section class="v31-two-col">
+      <article class="v31-panel">
+        <h2>Add assistant note</h2>
+        <% if (!peopleIAssist || !peopleIAssist.length) { %>
+          <div class="simple-empty-card small"><strong>No principal assigned yet.</strong><p>Ask the key person or org admin to add you as an assistant.</p></div>
+        <% } else { %>
+          <form method="POST" action="/user/assistant/notes-v31" class="v31-form-grid">
+            <label>For<select name="principalEmail" required><% peopleIAssist.forEach(function(m){ %><option value="<%= m.principalEmail %>"><%= m.principalName || m.principalEmail %></option><% }) %></select></label>
+            <label>Type<select name="noteType"><option value="question">Question to ask</option><option value="prep">Prep note</option><option value="followup">Follow-up reminder</option><option value="risk">Risk / watchout</option><option value="decision">Decision needed</option><option value="general">General note</option></select></label>
+            <label>Context<select name="targetType"><option value="general">General</option><option value="meeting">Specific meeting</option><option value="thread">Specific thread</option></select></label>
+            <label>Title<input name="title" placeholder="Optional short title" /></label>
+            <label class="span-2">Meeting, optional<select name="eventId"><option value="">No meeting / general</option><% (recentMeetings || []).forEach(function(m){ %><option value="<%= m.eventId %>"><%= m.subject %> · <%= m.startDateTime ? new Date(m.startDateTime).toLocaleDateString('en-IN') : '' %></option><% }) %></select></label>
+            <label class="span-2">Thread, optional<select name="threadId"><option value="">No thread / general</option><% (myThreads || []).forEach(function(t){ %><option value="<%= t._id %>"><%= t.name %></option><% }) %></select></label>
+            <label class="span-2">Note<textarea name="body" rows="7" placeholder="Example: Please ask whether Finance has validated the transaction pricing margin impact." required></textarea></label>
+            <div class="span-2"><button class="meeting-action primary" type="submit">Send to Assistant Desk</button></div>
+          </form>
+        <% } %>
+      </article>
+
+      <article class="v31-panel">
+        <h2>Inputs for me</h2>
+        <div class="v31-note-list">
+          <% (notesForMe || []).slice(0,8).forEach(function(n){ %>
+            <div class="v31-note-card <%= n.status === 'new' ? 'fresh' : '' %>"><div><span><%= noteTypeLabel(n.noteType) %></span><strong><%= n.title || n.targetTitle || 'Assistant note' %></strong><small>From <%= n.assistantName || n.assistantEmail %> · <%= n.createdAt ? new Date(n.createdAt).toLocaleString('en-IN') : '' %></small></div><p><%= n.body %></p><% if(n.status==='new'){ %><form method="POST" action="/user/assistant/notes/<%= n._id %>/seen"><button class="meeting-action" type="submit">Mark seen</button></form><% } %></div>
+          <% }) %>
+          <% if (!notesForMe || !notesForMe.length) { %><p class="simple-muted">No assistant inputs for you yet.</p><% } %>
+        </div>
+      </article>
+    </section>
+
+    <section class="v31-panel">
+      <h2>Notes I submitted</h2>
+      <div class="org-table-wrap"><table class="org-table"><thead><tr><th>Time</th><th>For</th><th>Type</th><th>Target</th><th>Note</th></tr></thead><tbody>
+        <% (notesByMe || []).forEach(function(n){ %><tr><td><%= n.createdAt ? new Date(n.createdAt).toLocaleString('en-IN') : '' %></td><td><%= n.principalName || n.principalEmail %></td><td><span class="org-pill warn"><%= noteTypeLabel(n.noteType) %></span></td><td><%= n.targetTitle || n.targetType %></td><td><%= n.body %></td></tr><% }) %>
+        <% if(!notesByMe || !notesByMe.length){ %><tr><td colspan="5" class="muted">No submitted notes yet.</td></tr><% } %>
+      </tbody></table></div>
+    </section>
+  </main>
+  <footer class="ms-minutes-footer">🐣 tiny meeting magic · (c) Karthik</footer>
+</section>

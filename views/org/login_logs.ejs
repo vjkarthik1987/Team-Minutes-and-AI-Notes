@@ -1,0 +1,4 @@
+<% layout('layout') %>
+<section class="page-hero compact"><div><div class="v3-kicker">Superadmin</div><h1>User login logs</h1><p>Recent user sign-ins by org, email, role, IP and device.</p></div><a class="v5-secondary" href="/org">Org dashboard</a></section>
+<%- include('../partials/org_admin_nav', { activeOrgNav: typeof activeOrgNav !== 'undefined' ? activeOrgNav : '' }) %>
+<div class="v8-table-wrap"><table class="v8-table"><thead><tr><th>Login time</th><th>User</th><th>Role</th><th>Status</th><th>IP</th><th>Device</th></tr></thead><tbody><% logs.forEach(l => { %><tr><td><%= l.loginAt ? new Date(l.loginAt).toLocaleString('en-IN') : '' %></td><td><strong><%= l.name || l.email %></strong><br><small><%= l.email %></small></td><td><%= l.role %></td><td><%= l.status %></td><td><%= l.ip || '-' %></td><td><small><%= l.userAgent || '-' %></small></td></tr><% }) %></tbody></table></div>

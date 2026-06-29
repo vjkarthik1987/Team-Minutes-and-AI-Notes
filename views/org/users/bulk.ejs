@@ -1,0 +1,32 @@
+<% layout('layout') %>
+<section class="org-hero compact">
+  <div><div class="org-kicker">Org users</div><h1>Bulk upload users</h1><p>Use the template, paste/upload CSV, validate rows, and import users into this org.</p></div>
+  <div class="org-hero-actions"><a class="org-primary-btn" href="/org/users/bulk/template.csv">Download template</a><a class="org-secondary-btn" href="/org/users">Back to users</a></div>
+</section>
+<%- include('../../partials/org_admin_nav', { activeOrgNav: typeof activeOrgNav !== 'undefined' ? activeOrgNav : '' }) %>
+<section class="org-panel org-bulk-grid">
+  <article>
+    <h2>Template format</h2>
+    <p class="muted">Required: <strong>name, email, role</strong>. Optional columns help you manage teams and permissions.</p>
+    <pre class="org-code"><%= sampleCsv || '' %></pre>
+    <p class="muted">Allowed roles: <strong>general_user</strong>, <strong>ceo</strong>, <strong>super_admin</strong>. Existing users are updated; new users are created.</p>
+  </article>
+  <article>
+    <% if (result) { %>
+      <div class="org-result <%= result.error ? 'bad' : 'ok' %>">
+        <% if (result.error) { %>
+          <strong><%= result.error %></strong>
+        <% } else { %>
+          <strong>Created <%= result.created %>, updated <%= result.updated %>, skipped <%= result.skipped %></strong>
+          <% if (result.errors && result.errors.length) { %><ul><% result.errors.forEach(e => { %><li><%= e %></li><% }) %></ul><% } %>
+        <% } %>
+      </div>
+    <% } %>
+    <form method="post" action="/org/users/bulk" class="org-stack">
+      <label>Upload CSV file<input type="file" id="csvFile" accept=".csv,text/csv" /></label>
+      <label>CSV content<textarea id="csvText" name="csv" rows="14" placeholder="Paste CSV here"></textarea></label>
+      <button class="org-primary-btn" type="submit">Import users</button>
+    </form>
+  </article>
+</section>
+<script>document.getElementById('csvFile')?.addEventListener('change', async e=>{ var f=e.target.files[0]; if(f) document.getElementById('csvText').value = await f.text(); });</script>

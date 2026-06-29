@@ -1,0 +1,22 @@
+<% layout('layout') %>
+<section class="org-hero compact"><div><div class="org-kicker">Workspace setup</div><h1>Org settings</h1><p>Domains, tenant details, transcript options and retention.</p></div><a class="org-secondary-btn" href="/org">Dashboard</a></section>
+<%- include('../partials/org_admin_nav', { activeOrgNav: typeof activeOrgNav !== 'undefined' ? activeOrgNav : '' }) %>
+<% if (typeof saved !== 'undefined' && saved) { %><div class="org-result ok"><strong>Saved.</strong></div><% } %>
+<section class="org-panel narrow">
+  <form method="POST" action="/org/settings" class="org-form-grid">
+    <h2 class="span-2">Basics</h2>
+    <label>Org name<input name="name" type="text" value="<%= org.name %>" required /></label>
+    <label>Org slug<input name="slug" type="text" value="<%= org.slug %>" required /><small>Lowercase, no spaces.</small></label>
+    <label class="span-2">Allowed domains<input name="allowedDomains" type="text" value="<%= (org.allowedDomains || []).join(', ') %>" placeholder="example.com, example.org" /><small>Comma-separated. No @.</small></label>
+    <h2 class="span-2">Office 365</h2>
+    <label class="span-2">Tenant ID<input name="tenantId" type="text" value="<%= org.o365?.tenantId || '' %>" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></label>
+    <div class="org-checks span-2"><label><input type="checkbox" name="enforceTenantMatch" value="true" <%= org.o365?.enforceTenantMatch ? 'checked' : '' %> /> Enforce tenant match</label></div>
+    <h2 class="span-2">Features</h2>
+    <div class="org-checks span-2"><label><input type="checkbox" name="checkTranscripts" value="true" <%= org.features?.checkTranscripts ? 'checked' : '' %> /> Check transcripts</label><label><input type="checkbox" name="debugTranscripts" value="true" <%= org.features?.debugTranscripts ? 'checked' : '' %> /> Debug transcripts</label></div>
+    <h2 class="span-2">Retention</h2>
+    <label>Meeting retention days<input name="meetingDays" type="number" min="1" value="<%= org.retention?.meetingDays ?? 90 %>" /></label>
+    <label>Transcript retention days<input name="transcriptDays" type="number" min="1" value="<%= org.retention?.transcriptDays ?? 30 %>" /></label>
+    <div class="org-checks span-2"><label><input type="checkbox" name="storeRawTranscript" value="true" <%= org.retention?.storeRawTranscript ? 'checked' : '' %> /> Store raw transcript</label></div>
+    <div class="org-form-actions span-2"><button class="org-primary-btn" type="submit">Save changes</button><a href="/org">Cancel</a></div>
+  </form>
+</section>

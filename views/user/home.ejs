@@ -1,0 +1,53 @@
+<% layout('layout') %>
+
+<section class="simple-hub has-ms-footer">
+  <%- include('../partials/user_topbar_simple', { activeNav: 'home', showBack: false }) %>
+  <main class="simple-hub-main">
+    <section class="simple-hub-hero">
+      <p class="simple-eyebrow">Meeting workspace</p>
+      <h1>What do you want to do?</h1>
+      <p class="simple-hero-copy">
+        Start simple. Open meetings, continue a thread, or ask intelligence from your meeting memory.
+      </p>
+    </section>
+
+
+
+    <% const setupItems = [
+      { done: onboarding && onboarding.hasMeetings, label: 'Refresh meetings from Outlook', href: '/user/meetings?refresh=1' },
+      { done: onboarding && onboarding.hasTranscript, label: 'Open your first transcript', href: '/user/meetings' },
+      { done: onboarding && onboarding.hasSummary, label: 'Generate your first AI summary', href: '/user/meetings' },
+      { done: onboarding && onboarding.hasThread, label: 'Create your first thread', href: '/user/threads' },
+      { done: onboarding && onboarding.hasContext, label: 'Add one note, MoM, follow-up, or progress update', href: '/user/threads' },
+    ]; const doneCount = setupItems.filter(x => x.done).length; %>
+    <% if (doneCount < setupItems.length) { %>
+      <section class="v30-onboarding-card" aria-label="Ms. Minutes setup checklist">
+        <div>
+          <p class="simple-eyebrow">MVP warm-up</p>
+          <h2>Your Ms. Minutes setup</h2>
+          <p>Five tiny steps and the meeting magic starts feeling useful.</p>
+        </div>
+        <div class="v30-checklist">
+          <% setupItems.forEach(function(item){ %>
+            <a class="v30-check <%= item.done ? 'done' : '' %>" href="<%= item.href %>"><span><%= item.done ? '✓' : '○' %></span><%= item.label %></a>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
+
+    <section class="simple-hub-grid v311-home-grid" aria-label="Main workspace links">
+      <% cards.forEach(function(card){ %>
+        <a class="simple-hub-card simple-card-<%= card.key %>" href="<%= card.href %>">
+          <div class="simple-card-top">
+            <span class="simple-card-icon"><%= card.icon %></span>
+            <span class="simple-card-stat"><%= card.stat %></span>
+          </div>
+          <h2><%= card.title %></h2>
+          <p><%= card.text %></p>
+          <span class="simple-card-cta"><%= card.cta %> <b>→</b></span>
+        </a>
+      <% }) %>
+    </section>
+  </main>
+  <footer class="ms-minutes-footer">🐣 tiny meeting magic · (c) Karthik</footer>
+</section>

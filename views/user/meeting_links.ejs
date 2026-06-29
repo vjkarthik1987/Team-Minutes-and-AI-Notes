@@ -1,0 +1,29 @@
+<% layout('layout') %>
+<section class="simple-page has-ms-footer v31-page">
+  <%- include('../partials/user_topbar_simple', { activeNav: 'meeting-links', showBack: true }) %>
+  <main class="simple-page-main">
+    <section class="simple-page-hero compact"><p class="simple-eyebrow">Manual meeting links</p><h1>Connect related meetings</h1><p>Use this when the meetings are connected but have different titles, participants, or invites.</p></section>
+    <section class="v31-panel">
+      <form method="GET" action="/user/meeting-links" class="meeting-search-form"><div class="meeting-search-wrap"><span>⌕</span><input name="q" value="<%= q || '' %>" placeholder="Search meetings to connect..." /><button type="submit">Search</button></div></form>
+      <% if (fromMeeting) { %><div class="simple-success"><strong>Connecting from:</strong> <%= fromMeeting.subject %> · <%= fromMeeting.startDateTime ? new Date(fromMeeting.startDateTime).toLocaleString('en-IN') : '' %></div><% } %>
+      <form method="POST" action="/user/meeting-links" class="v31-form-grid">
+        <input type="hidden" name="linkMode" value="manual_form" />
+        <label>From meeting<select name="fromEventId" required><option value="">Choose source meeting</option><% (meetings || []).forEach(function(m){ %><option value="<%= m.eventId %>" <%= fromEventId===m.eventId ? 'selected' : '' %>><%= m.subject %> · <%= m.startDateTime ? new Date(m.startDateTime).toLocaleDateString('en-IN') : '' %></option><% }) %></select></label>
+        <label>Relationship<select name="relation"><option value="precursor_to">is a precursor to</option><option value="followup_to">is a follow-up to</option><option value="continues">continues discussion from</option><option value="provides_context_for">provides context for</option><option value="resulted_from">resulted from</option><option value="related_to">is related to</option></select></label>
+        <label class="span-2">To meeting<select name="toEventId" required><option value="">Choose target meeting</option><% (meetings || []).forEach(function(m){ %><option value="<%= m.eventId %>"><%= m.subject %> · <%= m.startDateTime ? new Date(m.startDateTime).toLocaleString('en-IN') : '' %></option><% }) %></select></label>
+        <label class="span-2">Reason<textarea name="reason" rows="3" placeholder="Example: This CEO review follows the pricing model discussion."></textarea></label>
+        <div class="span-2"><button class="meeting-action primary" type="submit">Connect meetings</button></div>
+      </form>
+    </section>
+    <section class="v31-panel"><h2>Existing manual links</h2><div class="org-table-wrap"><table class="org-table"><thead><tr><th>From</th><th>Relation</th><th>To</th><th>Reason</th><th></th></tr></thead><tbody>
+      <% (existingLinks || []).forEach(function(l){ %><tr><td><strong><%= l.fromSubject || l.fromEventId %></strong><br><small><%= l.fromStartDateTime || '' %></small></td><td><span class="org-pill warn"><%= relationLabel(l.relation) %></span></td><td><strong><%= l.toSubject || l.toEventId %></strong><br><small><%= l.toStartDateTime || '' %></small></td><td><%= l.reason || '-' %></td><td><% if (String(l.createdByEmail || '').toLowerCase() === String(me || '').toLowerCase()) { %><form method="POST" action="/user/meeting-links/<%= l._id %>/delete"><button class="meeting-action" type="submit">Remove</button></form><% } else { %><small class="simple-muted">Created by <%= l.createdByEmail || 'someone in the meeting' %></small><% } %></td></tr><% }) %>
+      <% if(!existingLinks || !existingLinks.length){ %><tr><td colspan="5" class="muted">No manual meeting links yet.</td></tr><% } %>
+    </tbody></table></div></section>
+
+    <section class="v31-panel v313-network-panel"><h2>Meeting network</h2><p class="simple-muted">Manual links behave like a node network. If X leads to Y and Y leads to Z, Ms. Minutes can use X as indirect context for Z.</p>
+      <% if (graph && graph.edges && graph.edges.length) { %><div class="v313-network-list">
+        <% graph.edges.slice(0,40).forEach(function(e){ %><div class="v313-network-edge"><strong><%= (graph.nodes.find(n => n.id===e.from) || {}).title || e.from %></strong><span>→</span><em><%= relationLabel(e.relation) %></em><span>→</span><strong><%= (graph.nodes.find(n => n.id===e.to) || {}).title || e.to %></strong></div><% }) %>
+      </div><% } else { %><div class="v30-empty-state"><strong>No network yet</strong><p>Connect two meetings to start building the memory graph.</p></div><% } %>
+    </section>
+  </main><footer class="ms-minutes-footer">🐣 tiny meeting magic · (c) Karthik</footer>
+</section>

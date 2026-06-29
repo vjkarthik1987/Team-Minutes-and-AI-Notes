@@ -1,0 +1,359 @@
+<% layout('layout') %>
+
+<section class="simple-page simple-meetings-page has-ms-footer">
+  <%- include('../partials/user_topbar_simple', { activeNav: 'meetings', showBack: true }) %>
+  <main class="simple-page-main">
+    <section class="simple-page-hero compact">
+      <p class="simple-eyebrow">Last <%= windowDays %> days</p>
+      <div class="simple-title-row">
+        <div>
+          <h1>Meetings</h1>
+        </div>
+        <a class="simple-refresh-btn" data-loading-message="Talking to Outlook and refreshing your meeting list…" href="/user/meetings?refresh=1<%= q ? '&q=' + encodeURIComponent(q) : '' %>">↻ Refresh from Outlook</a>
+      </div>
+      <% if (lastSyncedAt) { %>
+        <small class="simple-muted">Last calendar sync: <%= lastSyncedAtLabel %></small>
+      <% } %>
+      <% if (error) { %>
+        <div class="simple-alert"><%= error %></div>
+      <% } %>
+      <% if (refreshed) { %>
+        <div class="simple-success">Meeting list refreshed.</div>
+      <% } %>
+    </section>
+
+    <section class="v29-import-card" aria-label="Import calendar invite">
+      <div>
+        <strong>Got a forwarded or old invite?</strong>
+        <small>Import a .ics file so Ms. Minutes knows the meeting exists.</small>
+      </div>
+      <form method="POST" action="/user/meetings/import-ics" enctype="multipart/form-data" data-loading-message="Importing the calendar invite…">
+        <input type="hidden" name="returnTo" value="/user/intelligence" />
+        <label class="v291-file-picker">
+          <input type="file" name="calendarFile" accept=".ics,.ical" required />
+          <span class="v291-file-button">Choose .ics</span>
+          <em class="v291-file-name">No file chosen</em>
+        </label>
+        <button class="meeting-action primary" type="submit">Import .ics</button>
+      </form>
+    </section>
+
+    <form class="meeting-search-form" method="GET" action="/user/meetings" role="search">
+      <div class="meeting-search-wrap dynamic">
+        <span>⌕</span>
+        <input
+          id="meetingSearchInput"
+          type="search"
+          name="q"
+          value="<%= q || '' %>"
+          placeholder="Type 3+ letters to search meetings instantly..."
+          aria-label="Search meetings"
+          autocomplete="off"
+        />
+        <button id="meetingSearchSubmit" type="submit">Search</button>
+      </div>
+      <p id="meetingSearchMeta" class="meeting-search-meta">
+        Showing <strong><%= meetings.length %></strong> of <strong><%= filteredMeetingCount %></strong>
+        <% if (q) { %> matching meetings <% } else { %> transcript meetings <% } %>
+        from <%= totalMeetingCount %> available in the last <%= windowDays %> days.
+      </p>
+    </form>
+
+    <section id="meetingsEmpty" class="simple-empty-card <%= meetings && meetings.length ? 'hidden' : '' %>">
+      <h2>No transcript meetings found</h2>
+      <p id="meetingsEmptyText">
+        <% if (q) { %>
+          No meetings matched “<%= q %>”. Try a simpler search term or clear the search.
+        <% } else { %>
+          Try refreshing from Outlook. This page looks back <%= windowDays %> days and shows meetings where a transcript is available or already saved.
+        <% } %>
+      </p>
+      <a id="meetingsEmptyAction" href="<%= q ? '/user/meetings' : '/user/meetings?refresh=1' %>"><%= q ? 'Clear search' : 'Refresh meetings' %></a>
+    </section>
+
+    <section id="meetingCardList" class="meeting-card-list" aria-label="Meetings list">
+      <% (meetings || []).forEach(function(m){ %>
+        <article class="meeting-card">
+          <div class="meeting-card-date">
+            <strong><%= m.dayNumber %></strong>
+            <span><%= m.monthLabel %></span>
+          </div>
+
+          <div class="meeting-card-body">
+            <div class="meeting-card-mainline">
+              <h2 title="<%= m.subject %>"><%= m.subject %></h2>
+              <span class="meeting-pill <%= m.transcriptHref ? 'ready' : '' %>"><%= m.sourceLabel %></span>
+            </div>
+            <div class="meeting-date-row"><span class="meeting-date-visible"><%= m.dateLabel %></span><span class="meeting-time-visible"><%= m.timeLabel %></span></div>
+            <% if (m.organizerEmail) { %><p class="meeting-meta">Organiser: <%= m.organizerEmail %></p><% } %>
+            <% if (m.location) { %><p class="meeting-meta">Location: <%= m.location %></p><% } %>
+          </div>
+
+          <div class="meeting-card-actions">
+            <% if (m.transcriptHref) { %>
+              <a class="meeting-action primary" data-loading-message="Loading the transcript…" href="<%= m.transcriptHref %>">Transcript</a>
+            <% } else { %>
+              <span class="meeting-action disabled">Transcript</span>
+            <% } %>
+
+            <% if (m.summaryHref) { %>
+              <a class="meeting-action <%= m.summaryReady ? 'summary-ready' : 'summary-generate' %>" data-loading-message="Loading AI notes for this meeting…" href="<%= m.summaryHref %>"><%= m.summaryLabel %></a>
+            <% } else { %>
+              <span class="meeting-action disabled">AI Summary</span>
+            <% } %>
+            <% if (m.eventId) { %>
+              <button class="meeting-action js-open-connect-meeting" type="button" data-event-id="<%= m.eventId %>" data-subject="<%= m.subject %>" data-date="<%= m.dateLabel %> · <%= m.timeLabel %>">Connect</button>
+            <% } %>
+          </div>
+        </article>
+      <% }) %>
+    </section>
+
+    <div id="meetingScrollLoader" class="meeting-scroll-loader <%= hasMore ? '' : 'done' %>" aria-live="polite">
+      <span class="ms-loader-dot"></span>
+      <strong><%= hasMore ? 'Loading more as you scroll…' : 'All caught up ✨' %></strong>
+    </div>
+  </main>
+
+
+  <div id="connectMeetingModal" class="thread-modal" aria-hidden="true">
+    <div class="thread-modal-backdrop js-close-connect-meeting"></div>
+    <section class="thread-modal-card v313-connect-modal" role="dialog" aria-modal="true" aria-labelledby="connectMeetingTitle">
+      <button type="button" class="thread-modal-close js-close-connect-meeting" aria-label="Close">×</button>
+      <div class="thread-modal-head">
+        <span>🔗</span>
+        <div>
+          <p class="simple-eyebrow">Connect meetings</p>
+          <h2 id="connectMeetingTitle">Build a meeting chain</h2>
+          <p>Pick whether this meeting came before or after another cached meeting. Simple, human-confirmed context.</p>
+        </div>
+      </div>
+      <form method="POST" action="/user/meeting-links" class="thread-modal-form" data-loading-message="Connecting meetings…">
+        <input type="hidden" name="fromEventId" id="connectBaseEventId" />
+        <input type="hidden" name="targetEventId" id="connectTargetEventId" />
+        <input type="hidden" name="returnTo" value="/user/meetings" />
+        <div class="v313-current-meeting-card v314-current-meeting-card"><small>This meeting</small><strong id="connectBaseTitle">Meeting</strong><span id="connectBaseDate"></span></div>
+        <div class="v314-connect-step"><span>1. Relationship</span>
+          <div class="v313-relation-choice v314-relation-choice">
+            <label><input type="radio" name="linkMode" value="current_precursor" checked /> <b>This meeting came before</b><small>Selected meeting is the successor / next step</small></label>
+            <label><input type="radio" name="linkMode" value="current_successor" /> <b>This meeting came after</b><small>Selected meeting is the precursor / background</small></label>
+          </div>
+        </div>
+        <label class="v314-connect-step"><span>2. Search cached meetings</span>
+          <div class="thread-collab-box v314-connect-search-box">
+            <input id="connectMeetingSearch" type="search" placeholder="Type 3+ letters from title, organiser or date..." autocomplete="off" />
+            <div id="connectMeetingResults" class="thread-collab-results hidden"></div>
+            <div id="connectMeetingSelected" class="thread-collab-chips"></div>
+          </div>
+          <small>Only meetings already in your Ms. Minutes cache are shown. Future meetings work after Outlook refresh caches them.</small>
+        </label>
+        <label class="v314-connect-step"><span>3. Reason, optional</span><textarea name="reason" rows="2" placeholder="Example: This CEO review follows the platform roadmap discussion."></textarea></label>
+        <div class="thread-modal-actions"><button type="button" class="meeting-action js-close-connect-meeting">Cancel</button><button id="connectSubmitBtn" class="thread-create-submit" type="submit" disabled>Connect meetings</button></div>
+      </form>
+    </section>
+  </div>
+
+  <% if (refreshState) { %>
+    <div id="refreshNudgeModal" class="refresh-nudge-modal open <%= refreshState.mode === 'force' ? 'force' : '' %>" aria-hidden="false">
+      <div class="refresh-nudge-backdrop <%= refreshState.mode === 'force' ? '' : 'js-close-refresh-nudge' %>"></div>
+      <section class="refresh-nudge-card" role="dialog" aria-modal="true" aria-labelledby="refreshNudgeTitle">
+        <% if (refreshState.mode !== 'force') { %>
+          <button type="button" class="refresh-nudge-close js-close-refresh-nudge" aria-label="Close">×</button>
+        <% } %>
+        <div class="refresh-nudge-emoji"><%= refreshState.mode === 'force' ? '🐣' : '🐥' %></div>
+        <p class="simple-eyebrow"><%= refreshState.mode === 'force' ? 'Refresh required' : 'Tiny nudge' %></p>
+        <h2 id="refreshNudgeTitle"><%= refreshState.title %></h2>
+        <p><%= refreshState.message %></p>
+        <div class="refresh-nudge-actions">
+          <% if (refreshState.mode !== 'force') { %>
+            <button type="button" class="meeting-action js-close-refresh-nudge">Later</button>
+          <% } %>
+          <a class="simple-refresh-btn" data-loading-message="Refreshing from Outlook…" href="/user/meetings?refresh=1<%= q ? '&q=' + encodeURIComponent(q) : '' %>">↻ Refresh now</a>
+        </div>
+      </section>
+    </div>
+  <% } %>
+
+  <footer class="ms-minutes-footer">🐣 tiny meeting magic · (c) Karthik</footer>
+</section>
+
+<script>
+(function(){
+  const modal = document.getElementById('refreshNudgeModal');
+  if(!modal) return;
+  document.querySelectorAll('.js-close-refresh-nudge').forEach(btn => btn.addEventListener('click', () => {
+    if(!modal.classList.contains('force')) modal.classList.remove('open');
+  }));
+})();
+
+(function(){
+  const input = document.getElementById('meetingSearchInput');
+  const list = document.getElementById('meetingCardList');
+  const loader = document.getElementById('meetingScrollLoader');
+  const meta = document.getElementById('meetingSearchMeta');
+  const empty = document.getElementById('meetingsEmpty');
+  const emptyText = document.getElementById('meetingsEmptyText');
+  const emptyAction = document.getElementById('meetingsEmptyAction');
+  if(!input || !list || !loader || !meta) return;
+
+  const state = {
+    q: <%- JSON.stringify(q || '') %>,
+    page: 1,
+    pageSize: <%= pageSize || 18 %>,
+    hasMore: <%= hasMore ? 'true' : 'false' %>,
+    loading: false,
+    visible: <%= meetings ? meetings.length : 0 %>,
+    filtered: <%= filteredMeetingCount || 0 %>,
+    total: <%= totalMeetingCount || 0 %>,
+    windowDays: <%= windowDays || 60 %>,
+    token: 0
+  };
+
+  function esc(value){
+    return String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function cardHtml(m){
+    const transcript = m.transcriptHref ? `<a class="meeting-action primary" data-loading-message="Loading the transcript…" href="${esc(m.transcriptHref)}">Transcript</a>` : `<span class="meeting-action disabled">Transcript</span>`;
+    const summaryClass = m.summaryReady ? 'summary-ready' : 'summary-generate';
+    const summary = m.summaryHref ? `<a class="meeting-action ${summaryClass}" data-loading-message="Loading AI notes for this meeting…" href="${esc(m.summaryHref)}">${esc(m.summaryLabel || 'AI Summary')}</a>` : `<span class="meeting-action disabled">AI Summary</span>`;
+    const connect = m.eventId ? `<button class="meeting-action js-open-connect-meeting" type="button" data-event-id="${esc(m.eventId)}" data-subject="${esc(m.subject || '')}" data-date="${esc((m.dateLabel || '') + ' · ' + (m.timeLabel || ''))}">Connect</button>` : '';
+    const org = m.organizerEmail ? `<p class="meeting-meta">Organiser: ${esc(m.organizerEmail)}</p>` : '';
+    const loc = m.location ? `<p class="meeting-meta">Location: ${esc(m.location)}</p>` : '';
+    return `<article class="meeting-card">
+      <div class="meeting-card-date"><strong>${esc(m.dayNumber || '—')}</strong><span>${esc(m.monthLabel || '')}</span></div>
+      <div class="meeting-card-body">
+        <div class="meeting-card-mainline"><h2 title="${esc(m.subject || '')}">${esc(m.subject || 'Untitled meeting')}</h2><span class="meeting-pill ${m.transcriptHref ? 'ready' : ''}">${esc(m.sourceLabel || 'Transcript ready')}</span></div>
+        <div class="meeting-date-row"><span class="meeting-date-visible">${esc(m.dateLabel || '')}</span><span class="meeting-time-visible">${esc(m.timeLabel || '')}</span></div>
+        ${org}${loc}
+      </div>
+      <div class="meeting-card-actions">${transcript}${summary}${connect}</div>
+    </article>`;
+  }
+  function updateMeta(){
+    const label = state.q ? 'matching meetings' : 'transcript meetings';
+    meta.innerHTML = `Showing <strong>${state.visible}</strong> of <strong>${state.filtered}</strong> ${label} from ${state.total} available in the last ${state.windowDays} days.`;
+  }
+  function updateEmpty(){
+    const noRows = state.visible === 0;
+    empty?.classList.toggle('hidden', !noRows);
+    list?.classList.toggle('hidden', noRows);
+    if(noRows && emptyText){
+      emptyText.textContent = state.q ? `No meetings matched “${state.q}”. Try a simpler search term.` : `Try refreshing from Outlook. This page looks back ${state.windowDays} days and shows meetings where a transcript is available or already saved.`;
+    }
+    if(emptyAction){
+      emptyAction.href = state.q ? '/user/meetings' : '/user/meetings?refresh=1';
+      emptyAction.textContent = state.q ? 'Clear search' : 'Refresh meetings';
+    }
+  }
+  function setLoader(text, mode){
+    loader.classList.toggle('loading', mode === 'loading');
+    loader.classList.toggle('done', mode === 'done');
+    loader.querySelector('strong').textContent = text;
+  }
+  async function fetchPage({reset=false}={}){
+    if(state.loading) return;
+    if(!state.hasMore && !reset) return;
+    const token = ++state.token;
+    state.loading = true;
+    setLoader(reset ? 'Searching meetings…' : 'Loading more meetings…', 'loading');
+    try{
+      const page = reset ? 1 : state.page + 1;
+      const url = `/user/meetings/data?page=${page}&limit=${state.pageSize}&q=${encodeURIComponent(state.q)}`;
+      const r = await fetch(url, {headers:{'Accept':'application/json'}});
+      const d = await r.json();
+      if(token !== state.token) return;
+      if(!r.ok || !d.ok) throw new Error(d.error || 'Could not load meetings');
+      if(reset){ list.innerHTML = ''; state.visible = 0; state.page = 1; }
+      list.insertAdjacentHTML('beforeend', (d.meetings || []).map(cardHtml).join(''));
+      state.page = d.page || page;
+      state.visible = reset ? (d.meetings || []).length : state.visible + (d.meetings || []).length;
+      state.filtered = d.filteredMeetingCount || 0;
+      state.total = d.totalMeetingCount || 0;
+      state.hasMore = !!d.hasMore;
+      updateMeta();
+      updateEmpty();
+      setLoader(state.hasMore ? 'Scroll for more meetings…' : 'All caught up ✨', state.hasMore ? 'idle' : 'done');
+    } catch(e){
+      setLoader('Could not load meetings. Try Search or refresh.', 'done');
+    } finally{
+      state.loading = false;
+    }
+  }
+
+  let timer = null;
+  input.addEventListener('input', function(){
+    const q = (input.value || '').trim();
+    clearTimeout(timer);
+    if(q.length > 0 && q.length < 3){
+      meta.innerHTML = 'Type <strong>3 or more characters</strong> to search instantly.';
+      return;
+    }
+    timer = setTimeout(function(){
+      state.q = q;
+      state.hasMore = true;
+      fetchPage({reset:true});
+    }, 260);
+  });
+
+  const io = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+    if(entries.some(e => e.isIntersecting)) fetchPage({reset:false});
+  }, {rootMargin:'480px 0px'}) : null;
+  if(io) io.observe(loader);
+  else window.addEventListener('scroll', () => {
+    if(window.innerHeight + window.scrollY > document.body.offsetHeight - 500) fetchPage({reset:false});
+  });
+})();
+
+(function(){
+  const modal = document.getElementById('connectMeetingModal');
+  const baseInput = document.getElementById('connectBaseEventId');
+  const targetInput = document.getElementById('connectTargetEventId');
+  const baseTitle = document.getElementById('connectBaseTitle');
+  const baseDate = document.getElementById('connectBaseDate');
+  const search = document.getElementById('connectMeetingSearch');
+  const results = document.getElementById('connectMeetingResults');
+  const selected = document.getElementById('connectMeetingSelected');
+  const submitBtn = document.getElementById('connectSubmitBtn');
+  let timer = null;
+  function escapeHtml(v){ return String(v || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  function open(btn){
+    if(!modal) return;
+    baseInput.value = btn.dataset.eventId || '';
+    targetInput.value = '';
+    baseTitle.textContent = btn.dataset.subject || 'Meeting';
+    baseDate.textContent = btn.dataset.date || '';
+    search.value = ''; results.innerHTML = ''; results.classList.add('hidden'); selected.innerHTML = ''; if(submitBtn) submitBtn.disabled = true;
+    modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
+    setTimeout(()=>search.focus(),80);
+  }
+  function close(){ modal?.classList.remove('open'); modal?.setAttribute('aria-hidden','true'); }
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('.js-open-connect-meeting');
+    if(btn) open(btn);
+  });
+  document.querySelectorAll('.js-close-connect-meeting').forEach(btn => btn.addEventListener('click', close));
+  function selectMeeting(m){
+    targetInput.value = m.eventId || ''; if(submitBtn) submitBtn.disabled = !targetInput.value;
+    selected.innerHTML = '<span class="thread-collab-chip"><b>'+escapeHtml(m.subject)+'</b><small>'+escapeHtml(m.dateLabel || '')+'</small><button type="button" aria-label="Remove">×</button></span>';
+    selected.querySelector('button')?.addEventListener('click', () => { targetInput.value=''; if(submitBtn) submitBtn.disabled = true; selected.innerHTML=''; search.focus(); });
+    search.value=''; results.classList.add('hidden'); results.innerHTML='';
+  }
+  async function doSearch(q){
+    if(!results) return;
+    if(q.length < 3){ results.classList.add('hidden'); results.innerHTML=''; return; }
+    results.classList.remove('hidden'); results.innerHTML = '<div class="thread-collab-loading">Searching meetings…</div>';
+    try{
+      const url = '/user/meeting-links/search?q=' + encodeURIComponent(q) + '&excludeEventId=' + encodeURIComponent(baseInput.value || '');
+      const r = await fetch(url);
+      const d = await r.json();
+      const meetings = d.meetings || [];
+      if(!meetings.length){ results.innerHTML = '<div class="thread-collab-empty">No cached meetings found. Refresh from Outlook first if this is a future meeting.</div>'; return; }
+      results.innerHTML = meetings.map(m => '<button type="button" data-event-id="'+escapeHtml(m.eventId)+'" data-subject="'+escapeHtml(m.subject)+'" data-date="'+escapeHtml(m.dateLabel || '')+'"><strong>'+escapeHtml(m.subject)+'</strong><span>'+escapeHtml(m.dateLabel || '')+(m.hasTranscript ? ' · transcript' : '')+'</span></button>').join('');
+      results.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => selectMeeting({ eventId:btn.dataset.eventId, subject:btn.dataset.subject, dateLabel:btn.dataset.date })));
+    }catch(e){ results.innerHTML = '<div class="thread-collab-empty">Only cached meetings are searched. No cached matches could be loaded now.</div>'; }
+  }
+  search?.addEventListener('input', () => { clearTimeout(timer); timer=setTimeout(()=>doSearch(search.value.trim()),220); });
+  modal?.querySelector('form')?.addEventListener('submit', (e) => { if(!targetInput.value){ e.preventDefault(); search.focus(); } });
+})();
+
+</script>

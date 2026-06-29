@@ -1,0 +1,26 @@
+<% layout('layout') %>
+<section class="org-hero compact"><div><div class="org-kicker">Assistant Desk</div><h1>Assistant mappings</h1><p>Assign assistants to key people. Assistants can add prep inputs without automatically seeing restricted transcripts.</p></div><a class="org-secondary-btn" href="/org">Dashboard</a></section>
+<%- include('../partials/org_admin_nav', { activeOrgNav: 'assistants' }) %>
+<section class="org-panel">
+  <form method="POST" action="/org/assistants" class="org-form-grid">
+    <label>Principal / key person<select name="principalEmail" required><option value="">Choose user</option><% (users||[]).forEach(function(u){ %><option value="<%= u.email %>"><%= u.name || u.email %> — <%= u.email %></option><% }) %></select></label>
+    <label>Assistant<select name="assistantEmail" required><option value="">Choose assistant</option><% (users||[]).forEach(function(u){ %><option value="<%= u.email %>"><%= u.name || u.email %> — <%= u.email %></option><% }) %></select></label>
+    <div class="org-checks span-2">
+      <label><input type="checkbox" name="canAddGeneralNotes" checked /> General notes</label>
+      <label><input type="checkbox" name="canAddMeetingNotes" checked /> Meeting notes</label>
+      <label><input type="checkbox" name="canAddThreadNotes" checked /> Thread notes</label>
+      <label><input type="checkbox" name="canAddQuestions" checked /> Questions to ask</label>
+      <label><input type="checkbox" name="canAddFollowups" checked /> Follow-ups</label>
+      <label><input type="checkbox" name="canAddRisks" checked /> Risks/watchouts</label>
+    </div>
+    <div class="org-form-actions span-2"><button class="org-primary-btn" type="submit">Add assistant mapping</button></div>
+  </form>
+</section>
+<section class="org-panel"><div class="org-section-head"><div><h2>Active mappings</h2><p><%= mappings.length %> active assistant relationships.</p></div></div><div class="org-table-wrap"><table class="org-table"><thead><tr><th>Principal</th><th>Assistant</th><th>Source</th><th>Permissions</th><th></th></tr></thead><tbody>
+  <% (mappings||[]).forEach(function(m){ %><tr><td><strong><%= m.principalName || m.principalEmail %></strong><br><small><%= m.principalEmail %></small></td><td><strong><%= m.assistantName || m.assistantEmail %></strong><br><small><%= m.assistantEmail %></small></td><td><span class="org-pill warn"><%= m.source %></span></td><td><small><%= Object.keys(m.permissions || {}).filter(k => m.permissions[k] === true).join(', ') %></small></td><td><form method="POST" action="/org/assistants/<%= m._id %>/remove"><button class="org-row-action" type="submit">Remove</button></form></td></tr><% }) %>
+  <% if(!mappings || !mappings.length){ %><tr><td colspan="5" class="muted">No assistant mappings yet.</td></tr><% } %>
+</tbody></table></div></section>
+<section class="org-panel"><h2>Recent Assistant Desk notes</h2><div class="org-table-wrap"><table class="org-table"><thead><tr><th>Time</th><th>For</th><th>Assistant</th><th>Type</th><th>Note</th></tr></thead><tbody>
+  <% (recentNotes||[]).forEach(function(n){ %><tr><td><%= n.createdAt ? new Date(n.createdAt).toLocaleString('en-IN') : '' %></td><td><%= n.principalName || n.principalEmail %></td><td><%= n.assistantName || n.assistantEmail %></td><td><span class="org-pill"><%= n.noteType %></span></td><td><%= n.body %></td></tr><% }) %>
+  <% if(!recentNotes || !recentNotes.length){ %><tr><td colspan="5" class="muted">No assistant notes yet.</td></tr><% } %>
+</tbody></table></div></section>

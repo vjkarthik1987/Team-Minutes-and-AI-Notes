@@ -1,0 +1,249 @@
+<% layout('layout') %>
+
+<section class="simple-page intelligence-page has-ms-footer">
+  <%- include('../partials/user_topbar_simple', { activeNav: 'intelligence', showBack: true }) %>
+  <main class="simple-page-main intelligence-main">
+    <section class="simple-page-hero compact intelligence-hero">
+      <p class="simple-eyebrow">Intelligence</p>
+      <div class="simple-title-row">
+        <div>
+          <h1>Walk in prepared.</h1>
+          <p>Prep based on linked threads and related meeting history.</p>
+        </div>
+        <a class="simple-refresh-btn primary" data-loading-message="Refreshing the next few days from Outlook…" href="/user/intelligence?refresh=1">↻ Refresh upcoming meetings</a>
+      </div>
+      <% if (lastSyncedAtLabel) { %>
+        <small class="simple-muted">Last calendar sync: <%= lastSyncedAtLabel %></small>
+      <% } %>
+      <% if (error) { %><div class="simple-alert"><%= error %></div><% } %>
+      <% if (refreshed) { %><div class="simple-success">Upcoming meetings refreshed. Ms. Minutes put on tiny spectacles. 🐥</div><% } %>
+    </section>
+
+    <section class="intel-week-card">
+      <div>
+        <p class="simple-eyebrow">Week ahead</p>
+        <h2>Prepare me for the week ahead</h2>
+        <p>Looks at upcoming meetings, recent matched meetings, and linked thread notes. Since structured action tracking is not ready yet, it gives practical follow-up questions, not fake action lists.</p>
+      </div>
+      <button type="button" class="intel-primary-btn js-week-prep">✨ Show week calendar</button>
+    </section>
+
+    <section class="v29-import-card" aria-label="Import calendar invite">
+      <div>
+        <strong>Add a forwarded invite</strong>
+        <small>Upload a .ics calendar file if a meeting was forwarded later or was not in your calendar.</small>
+      </div>
+      <form method="POST" action="/user/meetings/import-ics" enctype="multipart/form-data" data-loading-message="Importing the calendar invite…">
+        <input type="hidden" name="returnTo" value="/user/intelligence" />
+        <label class="v291-file-picker">
+          <input type="file" name="calendarFile" accept=".ics,.ical" required />
+          <span class="v291-file-button">Choose .ics</span>
+          <em class="v291-file-name">No file chosen</em>
+        </label>
+        <button class="meeting-action primary" type="submit">Import .ics</button>
+      </form>
+    </section>
+
+    <section class="intel-method-card">
+      <strong>How matching works</strong>
+      <span>1. Linked thread first</span>
+      <span>2. Normalized meeting title next</span>
+      <span>3. Conservative matching only</span>
+    </section>
+
+    <section class="intel-meetings-section">
+      <div class="intel-section-head">
+        <div>
+          <p class="simple-eyebrow"><%= upcomingRangeLabel || 'Today + tomorrow' %></p>
+          <h2>Your upcoming meetings</h2>
+        </div>
+        <span><%= upcomingMeetings.length %> shown · <%= weekMeetingCount || 0 %> in next 7 days</span>
+      </div>
+
+      <% if (!upcomingMeetings || !upcomingMeetings.length) { %>
+        <article class="simple-empty-card intel-empty-card">
+          <h2>No upcoming meetings found</h2>
+          <p>Refresh from Outlook to pull the next few days of meetings. After that, each meeting gets a prep button.</p>
+          <a href="/user/intelligence?refresh=1">Refresh upcoming meetings</a>
+        </article>
+      <% } else { %>
+        <div class="intel-meeting-list">
+          <% upcomingMeetings.forEach(function(m){ %>
+            <article class="intel-meeting-card">
+              <div class="intel-date-tile">
+                <strong><%= m.dayNumber %></strong>
+                <span><%= m.monthLabel %></span>
+              </div>
+              <div class="intel-meeting-body">
+                <div class="intel-meeting-title-row">
+                  <h3><%= m.subject %></h3>
+                  <% if (m.linkedThreadName) { %><span class="intel-thread-pill">🧵 <%= m.linkedThreadName %></span><% } %>
+                </div>
+                <p><%= m.dateLabel %> · <strong><%= m.timeLabel %></strong><% if (m.durationMinutes) { %> · <%= m.durationMinutes %> mins<% } %></p>
+                <div class="intel-match-line">
+                  <% if (m.linkedThreadName) { %>
+                    <span>Match hint: linked thread</span>
+                  <% } else if (m.subjectKey) { %>
+                    <span>Match hint: normalized title — “<%= m.subjectKey %>”</span>
+                  <% } else { %>
+                    <span>Match hint: title not strong yet</span>
+                  <% } %>
+                  <% if (m.hasTranscript) { %><span>Transcript available</span><% } %>
+                </div>
+              </div>
+              <div class="intel-meeting-actions">
+                <button type="button" class="intel-prep-btn js-prepare-meeting" data-event-id="<%= m.eventId %>">Help me prepare</button>
+              </div>
+            </article>
+          <% }) %>
+        </div>
+      <% } %>
+    </section>
+
+    <section class="ai-caveat-card intel-caveat">
+      <strong>🤖 Tiny AI warning</strong>
+      <p>Ms. Minutes is clever, but still made of maths and optimism. It prepares you using matched meeting memory; you remain the adult in the room.</p>
+    </section>
+  </main>
+
+  <div id="intelModal" class="thread-modal" aria-hidden="true">
+    <div class="thread-modal-backdrop js-close-intel-modal"></div>
+    <section class="thread-modal-card intel-modal-card" role="dialog" aria-modal="true" aria-labelledby="intelModalTitle">
+      <button type="button" class="thread-modal-close js-close-intel-modal" aria-label="Close">×</button>
+      <div class="thread-modal-head">
+        <span>✨</span>
+        <div>
+          <p class="simple-eyebrow">Ms. Minutes Intelligence</p>
+          <h2 id="intelModalTitle">Preparing…</h2>
+          <p id="intelModalSub">Checking linked threads and normalized-title history.</p>
+        </div>
+      </div>
+      <div id="intelModalBody" class="intel-result-body">
+        <div class="thread-collab-loading">Ms. Minutes is sniffing through meeting memory…</div>
+      </div>
+      <div id="intelModalSources" class="intel-sources hidden"></div>
+      <div class="ai-caveat-card intel-modal-caveat">
+        <strong>🐣 Sanity check</strong>
+        <p>Generated by AI and therefore prone to occasional nonsense with excellent posture. Please judge before acting.</p>
+      </div>
+      <div class="thread-modal-actions">
+        <button type="button" class="meeting-action js-copy-intel">Copy prep</button>
+        <button type="button" class="meeting-action js-close-intel-modal">Close</button>
+      </div>
+    </section>
+  </div>
+
+  <footer class="ms-minutes-footer">🐣 tiny meeting magic · (c) Karthik</footer>
+</section>
+
+<script>
+(function(){
+  const modal = document.getElementById('intelModal');
+  const title = document.getElementById('intelModalTitle');
+  const sub = document.getElementById('intelModalSub');
+  const body = document.getElementById('intelModalBody');
+  const sourcesBox = document.getElementById('intelModalSources');
+  let lastText = '';
+  let currentCacheId = '';
+  const weekMeetings = <%- JSON.stringify(weekUpcomingMeetings || []) %>;
+  function openModal(){ modal?.classList.add('open'); modal?.setAttribute('aria-hidden','false'); }
+  function closeModal(){ modal?.classList.remove('open'); modal?.setAttribute('aria-hidden','true'); }
+  function esc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function loading(t){
+    title.textContent = t || 'Preparing…';
+    sub.textContent = 'Checking linked threads and normalized-title history.';
+    body.innerHTML = '<div class="thread-collab-loading">Ms. Minutes is sniffing through meeting memory…</div>';
+    sourcesBox.classList.add('hidden');
+    sourcesBox.innerHTML = '';
+    lastText = '';
+    openModal();
+  }
+  function renderSources(sources){
+    if(!sources || !sources.length){ sourcesBox.classList.add('hidden'); sourcesBox.innerHTML = ''; return; }
+    sourcesBox.classList.remove('hidden');
+    sourcesBox.innerHTML = '<strong>Sources used</strong><ul>' + sources.slice(0,12).map(s => {
+      const label = esc(s.title || 'Source');
+      const meta = [s.startDateTime ? new Date(s.startDateTime).toLocaleString('en-IN', { dateStyle:'medium', timeStyle:'short' }) : '', s.match ? 'match: '+s.match : '', s.weight ? 'weight: '+s.weight : ''].filter(Boolean).join(' · ');
+      return `<li>${s.href ? `<a href="${esc(s.href)}">${label}</a>` : `<span>${label}</span>`}<small>${esc(meta)}</small></li>`;
+    }).join('') + '</ul>';
+  }
+  async function markReview(status){
+    if(!currentCacheId || !body) return;
+    try{
+      const r = await fetch('/user/intelligence-cache/' + encodeURIComponent(currentCacheId) + '/review', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'status=' + encodeURIComponent(status) });
+      const data = await r.json();
+      if(data.ok){ const note=document.createElement('div'); note.className='v30-review-inline'; note.textContent = status === 'reviewed' ? 'Reviewed ✓' : 'Marked for correction'; body.appendChild(note); }
+    }catch(e){}
+  }
+  function showResult(data){
+    title.textContent = data.title || 'Meeting prep';
+    const generated = data.generatedAtLabel ? ('Generated: ' + data.generatedAtLabel + (data.cached ? ' · saved answer' : ' · refreshed answer')) : '';
+    sub.textContent = generated || (data.matchBasis ? ('Match basis: ' + data.matchBasis) : 'Prepared from available meeting memory.');
+    lastText = data.answer || '';
+    currentCacheId = data.cacheId || '';
+    body.innerHTML = '<pre class="intel-answer-pre"></pre>' + (generated ? '<div class="v29-generated-meta"><span>'+esc(generated)+'</span><button type="button" class="js-review-intel" data-status="reviewed">Looks good</button><button type="button" class="js-review-intel" data-status="needs_correction">Needs correction</button><button type="button" class="js-refresh-current-intel">Refresh answer</button></div>' : '');
+    body.querySelector('pre').textContent = lastText || 'No answer returned.';
+    body.querySelector('.js-refresh-current-intel')?.addEventListener('click', function(){ if(window.__lastIntelUrl) run(window.__lastIntelUrl + (window.__lastIntelUrl.includes('?') ? '&' : '?') + 'refresh=1', 'Refreshing saved prep…'); });
+    body.querySelectorAll('.js-review-intel').forEach(btn => btn.addEventListener('click', () => markReview(btn.dataset.status || 'reviewed')));
+    renderSources(data.sources || []);
+  }
+  function meetingDateKey(value){
+    const d = new Date(value || '');
+    if(Number.isNaN(d.getTime())) return 'Date not available';
+    return d.toLocaleDateString('en-IN', { weekday:'short', day:'2-digit', month:'short' });
+  }
+  function meetingTime(value){
+    const d = new Date(value || '');
+    if(Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('en-IN', { hour:'numeric', minute:'2-digit' });
+  }
+  function showWeekCalendar(){
+    title.textContent = 'Your week ahead';
+    sub.textContent = 'Here is the calendar Ms. Minutes will use before preparing the week.';
+    sourcesBox.classList.add('hidden');
+    sourcesBox.innerHTML = '';
+    lastText = '';
+    if(!weekMeetings.length){
+      body.innerHTML = '<div class="intel-week-calendar"><p>No upcoming meetings found in the next 7 days. Refresh from Outlook first.</p><a class="simple-refresh-btn" data-loading-message="Refreshing upcoming meetings…" href="/user/intelligence?refresh=1">↻ Refresh upcoming meetings</a></div>';
+      openModal();
+      return;
+    }
+    const groups = {};
+    weekMeetings.forEach(m => { const k = meetingDateKey(m.startDateTime); (groups[k] = groups[k] || []).push(m); });
+    const html = Object.keys(groups).map(day => {
+      const rows = groups[day].map(m => `<div class="intel-week-meeting-row"><time>${esc(meetingTime(m.startDateTime))}</time><div><strong>${esc(m.subject || 'Untitled meeting')}</strong><small>${esc(m.timeLabel || '')}${m.durationMinutes ? ' · '+esc(m.durationMinutes)+' mins' : ''}${m.linkedThreadName ? ' · 🧵 '+esc(m.linkedThreadName) : ''}</small></div></div>`).join('');
+      return `<section class="intel-week-day"><h3>${esc(day)}</h3>${rows}</section>`;
+    }).join('');
+    body.innerHTML = `<div class="intel-week-calendar">${html}<div class="intel-week-calendar-actions"><button type="button" class="intel-primary-btn js-generate-week-prep">Generate week prep →</button></div></div>`;
+    body.querySelector('.js-generate-week-prep')?.addEventListener('click', () => run('/user/intelligence/week-ahead', 'Preparing week ahead…'));
+    openModal();
+  }
+  async function run(url, label){
+    window.__lastIntelUrl = url;
+    loading(label);
+    try{
+      const r = await fetch(url, { headers: { Accept:'application/json' } });
+      const data = await r.json();
+      if(!r.ok || !data.ok) throw new Error(data.error || 'Could not prepare');
+      showResult(data);
+    }catch(e){
+      title.textContent = 'Could not prepare';
+      sub.textContent = 'Ms. Minutes dropped the tiny notepad.';
+      lastText = e.message || String(e);
+      body.innerHTML = '<pre class="intel-answer-pre"></pre>';
+      body.querySelector('pre').textContent = lastText;
+      sourcesBox.classList.add('hidden');
+    }
+  }
+  document.querySelectorAll('.js-close-intel-modal').forEach(btn => btn.addEventListener('click', closeModal));
+  document.querySelectorAll('.js-prepare-meeting').forEach(btn => btn.addEventListener('click', () => {
+    const id = btn.getAttribute('data-event-id') || '';
+    run('/user/intelligence/prepare?eventId=' + encodeURIComponent(id), 'Preparing for meeting…');
+  }));
+  document.querySelector('.js-week-prep')?.addEventListener('click', showWeekCalendar);
+  document.querySelector('.js-copy-intel')?.addEventListener('click', async function(){
+    try{ await navigator.clipboard.writeText(lastText || ''); this.textContent = 'Copied ✓'; setTimeout(()=>this.textContent='Copy prep', 1200); }catch(e){}
+  });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
+})();
+</script>

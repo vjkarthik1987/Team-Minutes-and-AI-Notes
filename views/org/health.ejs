@@ -1,0 +1,15 @@
+<% layout('layout') %>
+<section class="org-hero compact"><div><div class="org-kicker">Production trial console</div><h1>Health & diagnostics</h1><p>Quick confidence check before and during team rollout.</p></div><a class="org-secondary-btn" href="/org/diagnostics">Diagnostics</a></section>
+<%- include('../partials/org_admin_nav', { activeOrgNav: 'health' }) %>
+<section class="org-metric-grid compact">
+  <article><span>Users</span><strong><%= metrics.users %></strong><small>Active/inactive total</small></article>
+  <article><span>Meetings cached</span><strong><%= metrics.events %></strong><small><%= metrics.transcriptReady %> transcript-ready event rows</small></article>
+  <article><span>Transcript docs</span><strong><%= metrics.transcripts %></strong><small><%= metrics.summaries %> AI summaries</small></article>
+  <article><span>Threads</span><strong><%= metrics.threads %></strong><small>Active workstreams</small></article>
+  <article><span>Assistants</span><strong><%= metrics.mappings %></strong><small><%= metrics.notes %> notes</small></article>
+  <article><span>Issues</span><strong><%= metrics.openIssues %></strong><small>Open/reviewing</small></article>
+  <article><span>Errors</span><strong><%= metrics.openErrors %></strong><small>Unresolved</small></article>
+  <article><span>Last activity</span><strong><%= lastActivity ? 'Yes' : 'No' %></strong><small><%= lastActivity?.createdAt ? new Date(lastActivity.createdAt).toLocaleString('en-IN') : 'No page visit yet' %></small></article>
+</section>
+<section class="org-panel"><h2>Configuration checks</h2><div class="org-table-wrap"><table class="org-table"><thead><tr><th>Check</th><th>Status</th><th>Detail</th></tr></thead><tbody><% checks.forEach(function(c){ %><tr><td><strong><%= c.name %></strong></td><td><span class="org-pill <%= c.ok ? 'ok' : 'bad' %>"><%= c.status %></span></td><td><%= c.detail %></td></tr><% }) %></tbody></table></div></section>
+<section class="org-panel"><h2>User sync state</h2><div class="org-table-wrap"><table class="org-table"><thead><tr><th>User</th><th>Status</th><th>Last synced</th><th>Error</th></tr></thead><tbody><% (syncStates||[]).forEach(function(s){ %><tr><td><%= s.userEmail %></td><td><span class="org-pill <%= /fail|error/i.test(s.lastSyncStatus||'') ? 'bad' : 'ok' %>"><%= s.lastSyncStatus || 'idle' %></span></td><td><%= s.lastSyncedAt ? new Date(s.lastSyncedAt).toLocaleString('en-IN') : '-' %></td><td><small><%= s.lastSyncError || '-' %></small></td></tr><% }) %><% if(!syncStates || !syncStates.length){ %><tr><td colspan="4" class="muted">No sync state yet.</td></tr><% } %></tbody></table></div></section>

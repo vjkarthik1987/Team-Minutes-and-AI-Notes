@@ -1,0 +1,18 @@
+<% layout('layout') %>
+<section class="org-hero">
+  <div><div class="org-kicker">Usage dashboard</div><h1>Adoption pulse</h1><p>Who is using Ms. Minutes, where they are spending time, and what has been created.</p></div>
+  <div class="org-hero-actions"><a class="org-secondary-btn" href="/org/activity">Activity logs</a><a class="org-secondary-btn" href="/org">Dashboard</a></div>
+</section>
+<%- include('../partials/org_admin_nav', { activeOrgNav: typeof activeOrgNav !== 'undefined' ? activeOrgNav : '' }) %>
+<section class="org-metric-grid">
+  <article><span>Active users this week</span><strong><%= metrics.activeUsersWeek %></strong><small>Unique logins</small></article>
+  <article><span>Never logged in</span><strong><%= metrics.neverLoggedIn %></strong><small>Need onboarding nudge</small></article>
+  <article><span>Refreshed meetings</span><strong><%= metrics.refreshUsers %></strong><small>Users with synced calendar cache</small></article>
+  <article><span>AI summaries</span><strong><%= metrics.summariesGenerated %></strong><small><%= metrics.summariesReviewed %> reviewed</small></article>
+  <article><span>Threads created</span><strong><%= metrics.threadsCreated %></strong><small>Workstreams started</small></article>
+  <article><span>Intelligence answers</span><strong><%= metrics.intelligenceUsed %></strong><small>Prep / quick intel generated</small></article>
+</section>
+<section class="org-card-grid">
+  <article class="org-panel"><div class="org-section-head"><div><h2>Most active users</h2><p>Last 7 days.</p></div></div><div class="org-table-wrap"><table class="org-table"><thead><tr><th>User</th><th>Visits</th><th>Last seen</th></tr></thead><tbody><% (topUsers||[]).forEach(function(u){ %><tr><td><%= u._id || '-' %></td><td><strong><%= u.visits %></strong></td><td><%= u.last ? new Date(u.last).toLocaleString('en-IN') : '' %></td></tr><% }) %><% if(!topUsers || !topUsers.length){ %><tr><td colspan="3" class="muted">No usage yet.</td></tr><% } %></tbody></table></div></article>
+  <article class="org-panel"><div class="org-section-head"><div><h2>Top pages</h2><p>Last 7 days.</p></div></div><div class="org-table-wrap"><table class="org-table"><thead><tr><th>Page</th><th>Visits</th></tr></thead><tbody><% (topPages||[]).forEach(function(p){ %><tr><td><%= p._id || '-' %></td><td><strong><%= p.visits %></strong></td></tr><% }) %><% if(!topPages || !topPages.length){ %><tr><td colspan="2" class="muted">No page visits yet.</td></tr><% } %></tbody></table></div></article>
+</section>

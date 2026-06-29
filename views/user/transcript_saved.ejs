@@ -1,0 +1,62 @@
+<% layout('layout') %>
+
+<section class="simple-page simple-reader-page has-ms-footer">
+  <%- include('../partials/user_topbar_simple', { activeNav: 'meetings', showBack: true }) %>
+  <main class="simple-reader-main">
+    <section class="simple-reader-head">
+      <p class="simple-eyebrow">Transcript</p>
+      <h1><%= doc.subject || 'Meeting transcript' %></h1>
+      <p><%= doc.startDateTime ? new Date(doc.startDateTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '' %></p>
+      <div class="simple-reader-actions">
+        <a class="meeting-action primary" data-loading-message="Loading AI summary…" href="/user/transcript/saved/<%= doc._id %>/summary">AI Summary</a>
+        <button class="meeting-action js-copy-transcript copy-two-box" type="button" title="Copy transcript"><span class="copy-box-icon" aria-hidden="true"></span><b>Copy</b></button>
+        <a class="meeting-action" href="/user/transcript/saved/<%= doc._id %>/download.txt">Download transcript</a>
+        <a class="meeting-action" href="/user/meetings">Back to meetings</a>
+      </div>
+    </section>
+
+    <div class="ai-caveat-card transcript-caveat">
+      <strong>🤖 Tiny AI / transcript caveat</strong>
+      <p>Ms. Minutes is clever, but not clairvoyant. Speaker names and transcript text can be messy — you are still the final judge, jury, and meeting adult.</p>
+    </div>
+
+    <article class="simple-transcript-box">
+      <% if (doc.text) { %>
+        <pre id="transcriptText"><%= doc.text %></pre>
+      <% } else if (doc.vtt) { %>
+        <pre id="transcriptText"><%= doc.vtt %></pre>
+      <% } else { %>
+        <p>No transcript text found in this saved record.</p>
+      <% } %>
+    </article>
+  </main>
+  <footer class="ms-minutes-footer">🐣 tiny meeting magic · (c) Karthik</footer>
+</section>
+
+<script>
+(function(){
+  const btn = document.querySelector('.js-copy-transcript');
+  const textEl = document.getElementById('transcriptText');
+  if(!btn || !textEl) return;
+  btn.addEventListener('click', async function(){
+    const original = btn.innerHTML;
+    try {
+      await navigator.clipboard.writeText(textEl.textContent || '');
+      btn.innerHTML = 'Copied ✓';
+      btn.classList.add('copied');
+    } catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = textEl.textContent || '';
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand('copy'); btn.innerHTML = 'Copied ✓'; btn.classList.add('copied'); }
+      catch (_) { btn.innerHTML = 'Copy failed'; }
+      ta.remove();
+    }
+    setTimeout(function(){ btn.innerHTML = original; btn.classList.remove('copied'); }, 1400);
+  });
+})();
+</script>

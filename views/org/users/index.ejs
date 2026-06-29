@@ -1,0 +1,33 @@
+<% layout('layout') %>
+<section class="org-hero compact">
+  <div><div class="org-kicker">Org users</div><h1>Manage users</h1><p><%= users.length %> users in <%= org.name %>. Keep launch access tidy.</p></div>
+  <div class="org-hero-actions"><a class="org-primary-btn" href="/org/users/new">+ Add user</a><a class="org-secondary-btn" href="/org/users/bulk">Bulk upload</a></div>
+</section>
+<%- include('../../partials/org_admin_nav', { activeOrgNav: typeof activeOrgNav !== 'undefined' ? activeOrgNav : '' }) %>
+<section class="org-panel">
+  <div class="org-table-wrap">
+    <table class="org-table">
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Team</th><th>Status</th><th>Permissions</th><th>Last login</th><th></th></tr></thead>
+      <tbody>
+        <% (users || []).forEach(u => { %>
+          <tr>
+            <td><strong><%= u.name || '-' %></strong><br><small>Created <%= u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-IN') : '-' %></small></td>
+            <td><%= u.email %></td>
+            <td><%= roleLabel ? roleLabel(u.role) : u.role %></td>
+            <td><%= [u.department, u.designation].filter(Boolean).join(' · ') || '-' %></td>
+            <td><span class="org-pill <%= u.status === 'active' ? 'ok' : 'neutral' %>"><%= u.status %></span></td>
+            <td><%= [u.permissions?.canAssignActions ? 'Actions' : '', u.permissions?.canAssignFollowups ? 'Follow-ups' : '', u.permissions?.canViewAuditLog ? 'Audit' : ''].filter(Boolean).join(', ') || '-' %></td>
+            <td><%= u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString('en-IN') : 'Never' %></td>
+            <td class="org-user-row-actions">
+              <a class="org-row-action" href="/org/users/<%= u._id %>/edit">Edit</a>
+              <form method="POST" action="/org/users/<%= u._id %>/remove" onsubmit="return confirm('Remove <%= u.email %> from this org? This will deactivate the user and disable assistant mappings.');">
+                <button class="org-row-action danger" type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+        <% if (!users || !users.length) { %><tr><td colspan="8" class="muted">No users yet. Use bulk upload to get started quickly.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+</section>
